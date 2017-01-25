@@ -1472,6 +1472,27 @@
         </profile>
 
         <profile>
+            <id>product</id>
+            <activation>
+                <property>
+                    <name>productProfile</name>
+                </property>
+            </activation>
+            <properties>
+                <product.name>rh-sso</product.name>
+                <product.name-html>\u003Cstrong\u003ERed Hat\u003C\u002Fstrong\u003E\u003Csup\u003E\u00AE\u003C\u002Fsup\u003E Single Sign On</product.name-html>
+                <product.version>7.1.0.ER3</product.version>
+                <product.default-profile>product</product.default-profile>
+                <product.filename.version>7.1</product.filename.version>
+                <maven.compiler.target>1.7</maven.compiler.target>
+                <maven.compiler.source>1.7</maven.compiler.source>
+                <eap.version>${wildfly.version}</eap.version>
+                <wildfly.build-tools.version>1.1.3.Final</wildfly.build-tools.version>
+                <wildfly.plugin.version>1.0.1.Final</wildfly.plugin.version>
+            </properties>
+        </profile>
+
+        <profile>
             <id>jboss-release</id>
             <modules>
                 <module>distribution</module>

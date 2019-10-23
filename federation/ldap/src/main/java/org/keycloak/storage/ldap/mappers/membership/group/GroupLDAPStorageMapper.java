@@ -132,6 +132,12 @@ public class GroupLDAPStorageMapper extends AbstractLDAPStorageMapper implements
         return ldapGroup;
     }
 
+    public LDAPObject updateLDAPGroup(LDAPObject ldapObject) {
+        LDAPObject ldapGroup = LDAPUtils.updateLDAPGroup(ldapProvider, ldapObject);
+
+        return ldapGroup;
+    }
+
     public LDAPObject loadLDAPGroupByName(String groupName) {
         try (LDAPQuery ldapQuery = createGroupQuery(true)) {
             Condition roleNameCondition = new LDAPQueryConditionsBuilder().equal(config.getGroupNameLdapAttribute(), groupName);

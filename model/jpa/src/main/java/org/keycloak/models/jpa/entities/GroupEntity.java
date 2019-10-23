@@ -36,6 +36,11 @@ import java.util.Collection;
 })
 @Entity
 @Table(name="KEYCLOAK_GROUP")
+/*
+@Table(name="KEYCLOAK_GROUP",
+        uniqueConstraints = { @UniqueConstraint(columnNames = {"REALM_ID", "PARENT_GROUP", "NAME"})}
+)
+ */
 public class GroupEntity {
     @Id
     @Column(name="ID", length = 36)

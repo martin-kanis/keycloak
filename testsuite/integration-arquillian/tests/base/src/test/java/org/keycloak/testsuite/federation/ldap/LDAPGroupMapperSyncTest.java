@@ -407,7 +407,7 @@ public class LDAPGroupMapperSyncTest extends AbstractLDAPTest {
     public void test06_ldapGroupsSyncHasLinearTimeComplexity() throws Exception {
         // Count of LDAP groups to test the duration of the sync operation. Defaults to 30k unless overridden via system property
         final int GROUPS_COUNT = (System.getProperties().containsKey(TEST_LDAP_GROUPS_SYNC_LINEAR_TIME_GROUPS_COUNT)) ?
-                Integer.valueOf(System.getProperty(TEST_LDAP_GROUPS_SYNC_LINEAR_TIME_GROUPS_COUNT)) : 10000;
+                Integer.valueOf(System.getProperty(TEST_LDAP_GROUPS_SYNC_LINEAR_TIME_GROUPS_COUNT)) : 30000;
         // Period on how often (per how many groups) to perform the LDAP groups sync test & report the results back.
         // Defaults to 1k unless overridden via system property
         final int TEST_PERIOD = (System.getProperties().containsKey(TEST_LDAP_GROUPS_SYNC_LINEAR_TIME_TEST_PERIOD)) ?

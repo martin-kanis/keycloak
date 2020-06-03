@@ -18,11 +18,16 @@
 package org.keycloak.services.util;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.fasterxml.jackson.datatype.jdk8.StreamSerializer;
 
 import javax.ws.rs.ext.ContextResolver;
 import javax.ws.rs.ext.Provider;
+import java.util.stream.Stream;
 
 /**
  * Any class with package org.jboss.resteasy.skeleton.key will use NON_DEFAULT inclusion
@@ -35,6 +40,13 @@ public class ObjectMapperResolver implements ContextResolver<ObjectMapper> {
     protected ObjectMapper mapper = new ObjectMapper();
 
     public ObjectMapperResolver(boolean indent) {
+        JavaType type = TypeFactory.unknownType();
+        JavaType streamType = mapper.getTypeFactory().constructParametricType(Stream.class, type);
+
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(new StreamSerializer(streamType, type));
+        mapper.registerModule(module);
+
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         if (indent) {
             mapper.enable(SerializationFeature.INDENT_OUTPUT);

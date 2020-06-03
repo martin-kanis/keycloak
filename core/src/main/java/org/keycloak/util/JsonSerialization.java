@@ -20,14 +20,19 @@ package org.keycloak.util;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.fasterxml.jackson.datatype.jdk8.StreamSerializer;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.stream.Stream;
 
 /**
  * Utility class to handle simple JSON serializable for Keycloak.
@@ -46,6 +51,13 @@ public class JsonSerialization {
         prettyMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
         prettyMapper.enable(SerializationFeature.INDENT_OUTPUT);
         prettyMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+        JavaType type = TypeFactory.unknownType();
+        JavaType streamType = prettyMapper.getTypeFactory().constructParametricType(Stream.class, type);
+
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(new StreamSerializer(streamType, type));
+        prettyMapper.registerModule(module);
     }
 
     public static void writeValueToStream(OutputStream os, Object obj) throws IOException {

@@ -113,7 +113,7 @@ public class KeycloakApplication extends Application {
             classes.add(KeycloakTransactionCommitter.class);
             classes.add(KeycloakErrorHandler.class);
 
-            singletons.add(new ObjectMapperResolver(Boolean.parseBoolean(System.getProperty("keycloak.jsonPrettyPrint", "false"))));
+            singletons.add(new ObjectMapperResolver());
             singletons.add(new WelcomeResource());
 
             platform.onStartup(this::startup);

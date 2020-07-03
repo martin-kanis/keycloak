@@ -34,9 +34,9 @@ import javax.ws.rs.ext.Provider;
 public class ObjectMapperResolver implements ContextResolver<ObjectMapper> {
     protected ObjectMapper mapper = new ObjectMapper();
 
-    public ObjectMapperResolver(boolean indent) {
+    public ObjectMapperResolver() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        if (indent) {
+        if (Boolean.parseBoolean(System.getProperty("keycloak.jsonPrettyPrint", "false"))) {
             mapper.enable(SerializationFeature.INDENT_OUTPUT);
         }
     }

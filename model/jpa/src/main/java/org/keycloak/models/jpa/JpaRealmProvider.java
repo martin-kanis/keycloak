@@ -17,7 +17,10 @@
 
 package org.keycloak.models.jpa;
 
+import org.hibernate.ScrollMode;
+import org.hibernate.ScrollableResults;
 import org.jboss.logging.Logger;
+import org.keycloak.utils.StreamsUtil;
 import org.keycloak.common.util.Time;
 import org.keycloak.connections.jpa.util.JpaUtils;
 import org.keycloak.migration.MigrationModel;
@@ -626,9 +629,11 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, GroupPro
             query.setMaxResults(maxResults);
         }
         query.setParameter("realm", realm.getId());
-        Stream<String> clients = query.getResultStream();
+        org.hibernate.query.Query hquery = query.unwrap(org.hibernate.query.Query.class);
+        ScrollableResults results = hquery.scroll(ScrollMode.FORWARD_ONLY);
 
-        return clients.map(c -> session.clients().getClientById(realm, c)).filter(Objects::nonNull);
+        Stream<String> clientModelStream = StreamsUtil.resultStream(String.class, 100, results);
+        return clientModelStream.map(realm::getClientById).filter(Objects::nonNull);
     }
 
     @Override

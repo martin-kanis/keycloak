@@ -102,6 +102,7 @@ public class OfflineServletsAdapterTest extends AbstractServletsAdapterTest {
         Assert.assertNotEquals(offlineTokenPage.getAccessToken().getId(), accessTokenId);
 
         // Ensure that logout works for webapp (even if offline token will be still valid in Keycloak DB)
+        // TODO this logout doesn't work, it's going by different path as no active session is found
         offlineTokenPage.logout();
         assertCurrentUrlDoesntStartWith(offlineTokenPage);
         loginPage.assertCurrent();
@@ -135,6 +136,7 @@ public class OfflineServletsAdapterTest extends AbstractServletsAdapterTest {
 
         events.clear();
 
+        // TODO will not authenticate in AuthenticationManager.verifyIdentityToken via offline session because isCookie=true
         // Go to account service and revoke grant
         accountAppPage.open();
 
@@ -183,6 +185,7 @@ public class OfflineServletsAdapterTest extends AbstractServletsAdapterTest {
         assertCurrentUrlStartsWith(offlineTokenPage);
         Assert.assertEquals(TokenUtil.TOKEN_TYPE_OFFLINE, offlineTokenPage.getRefreshToken().getType());
 
+        // TODO again not authenticated in AuthenticationManager.verifyIdentityToken
         accountAppPage.open();
         AccountApplicationsPage.AppEntry offlineClient = accountAppPage.getApplications().get("offline-client");
         Assert.assertThat(offlineClient.getClientScopesGranted(), Matchers.hasItem(OAuthGrantPage.OFFLINE_ACCESS_CONSENT_TEXT));

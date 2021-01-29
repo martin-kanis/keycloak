@@ -89,6 +89,8 @@ public class TokenRevocationTest extends AbstractKeycloakTest {
     public void testRevokeToken() throws Exception {
         oauth.clientSessionState("client-session");
         OAuthClient.AccessTokenResponse tokenResponse1 = login("test-app", "test-user@localhost", "password");
+        // TODO
+        Thread.sleep(5000);
         OAuthClient.AccessTokenResponse tokenResponse2 = login("test-app-scope", "test-user@localhost", "password");
 
         UserResource testUser = realm.users().get(realm.users().search("test-user@localhost").get(0).getId());

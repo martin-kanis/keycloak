@@ -335,6 +335,8 @@ public class OIDCPairwiseClientRegistrationTest extends AbstractClientRegistrati
         // Login to pairwise client
         oauth.clientId(pairwiseClient.getClientId());
         oauth.openLoginForm();
+        // TODO
+        Thread.sleep(5000);
         loginResponse = new OAuthClient.AuthorizationEndpointResponse(oauth);
         accessTokenResponse = oauth.doAccessTokenRequest(loginResponse.getCode(), pairwiseClient.getClientSecret());
 

@@ -21,11 +21,17 @@ package org.keycloak.models;
 import java.util.Map;
 
 import org.keycloak.sessions.CommonClientSessionModel;
+import org.keycloak.storage.SearchableModelField;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
 public interface AuthenticatedClientSessionModel extends CommonClientSessionModel {
+
+    class SearchableFields {
+        public static final SearchableModelField<AuthenticatedClientSessionModel> REALM  = new SearchableModelField<>("realm", RealmModel.class);
+        public static final SearchableModelField<AuthenticatedClientSessionModel> CLIENT  = new SearchableModelField<>("client", ClientModel.class);
+    }
 
     String getId();
 

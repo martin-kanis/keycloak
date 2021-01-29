@@ -32,6 +32,8 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
 import org.keycloak.models.UserSessionProviderFactory;
+import org.keycloak.models.map.userSession.MapUserSessionProvider;
+import org.keycloak.models.session.UserSessionPersisterProvider;
 import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProvider;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
@@ -44,6 +46,7 @@ import org.keycloak.testsuite.arquillian.annotation.ModelTest;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
@@ -212,8 +215,12 @@ public class UserSessionInitializerTest extends AbstractTestRealmKeycloakTest {
             RealmModel realm = currentSession.realms().getRealmByName(realmName);
 
             // Delete local user cache (persisted sessions are still kept)
-            InfinispanUserSessionProvider userSessionProvider = (InfinispanUserSessionProvider) currentSession.getProvider(UserSessionProvider.class);
-            userSessionProvider.removeLocalUserSessions(realm.getId(), true);
+            UserSessionProvider provider = currentSession.getProvider(UserSessionProvider.class);
+            if (provider instanceof InfinispanUserSessionProvider) {
+                ((InfinispanUserSessionProvider) provider).removeLocalUserSessions(realm.getId(), true);
+            } else if (provider instanceof MapUserSessionProvider) {
+                ((MapUserSessionProvider) provider).removeLocalOfflineUserSessions(realm);
+            }
 
             // Clear ispn cache to ensure initializerState is removed as well
             InfinispanConnectionProvider infinispan = currentSession.getProvider(InfinispanConnectionProvider.class);

@@ -19,12 +19,16 @@ package org.keycloak.models.map.storage;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.RoleModel;
+import org.keycloak.models.UserLoginFailureModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.map.authSession.AbstractRootAuthenticationSessionEntity;
 import org.keycloak.models.map.client.AbstractClientEntity;
 import org.keycloak.models.map.common.AbstractEntity;
 import org.keycloak.models.map.group.AbstractGroupEntity;
 import org.keycloak.models.map.role.AbstractRoleEntity;
+import org.keycloak.models.map.userSession.AbstractUserLoginFailureEntity;
+import org.keycloak.models.map.userSession.AbstractUserSessionEntity;
 import org.keycloak.storage.SearchableModelField;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +56,8 @@ public class MapFieldPredicates {
     public static final Map<SearchableModelField<RoleModel>, UpdatePredicatesFunc<Object, AbstractRoleEntity<Object>, RoleModel>> ROLE_PREDICATES = basePredicates(RoleModel.SearchableFields.ID);
     public static final Map<SearchableModelField<UserModel>, UpdatePredicatesFunc<Object, AbstractUserEntity<Object>, UserModel>> USER_PREDICATES = basePredicates(UserModel.SearchableFields.ID);
     public static final Map<SearchableModelField<RootAuthenticationSessionModel>, UpdatePredicatesFunc<Object, AbstractRootAuthenticationSessionEntity<Object>, RootAuthenticationSessionModel>> AUTHENTICATION_SESSION_PREDICATES = basePredicates(RootAuthenticationSessionModel.SearchableFields.ID);
+    public static final Map<SearchableModelField<UserSessionModel>, UpdatePredicatesFunc<Object, AbstractUserSessionEntity<Object>, UserSessionModel>> USER_SESSION_PREDICATES = basePredicates(UserSessionModel.SearchableFields.ID);
+    public static final Map<SearchableModelField<UserLoginFailureModel>, UpdatePredicatesFunc<Object, AbstractUserLoginFailureEntity<Object>, UserLoginFailureModel>> USER_LOGIN_FAILURE_PREDICATES = basePredicates(UserLoginFailureModel.SearchableFields.ID);
 
     @SuppressWarnings("unchecked")
     private static final Map<Class<?>, Map> PREDICATES = new HashMap<>();
@@ -91,6 +97,16 @@ public class MapFieldPredicates {
 
         put(AUTHENTICATION_SESSION_PREDICATES, RootAuthenticationSessionModel.SearchableFields.REALM_ID,    AbstractRootAuthenticationSessionEntity::getRealmId);
         put(AUTHENTICATION_SESSION_PREDICATES, RootAuthenticationSessionModel.SearchableFields.TIMESTAMP,   AbstractRootAuthenticationSessionEntity::getTimestamp);
+
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.REALM_ID,    AbstractUserSessionEntity::getRealmId);
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.USER_ID,     AbstractUserSessionEntity::getUserId);
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.CLIENT_ID,   MapFieldPredicates::checkUserSessionContainsAuthenticatedClientSession);
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.BROKER_SESSION_ID,     AbstractUserSessionEntity::getBrokerSessionId);
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.BROKER_USER_ID,     AbstractUserSessionEntity::getBrokerUserId);
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.IS_OFFLINE,     AbstractUserSessionEntity::isOffline);
+
+        put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.REALM_ID,    AbstractUserLoginFailureEntity::getRealmId);
+        put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.USER_ID,     AbstractUserLoginFailureEntity::getUserId);
     }
 
     static {
@@ -99,6 +115,8 @@ public class MapFieldPredicates {
         PREDICATES.put(GroupModel.class,                        GROUP_PREDICATES);
         PREDICATES.put(UserModel.class,                         USER_PREDICATES);
         PREDICATES.put(RootAuthenticationSessionModel.class,    AUTHENTICATION_SESSION_PREDICATES);
+        PREDICATES.put(UserSessionModel.class,                  USER_SESSION_PREDICATES);
+        PREDICATES.put(UserLoginFailureModel.class,             USER_LOGIN_FAILURE_PREDICATES);
     }
 
     private static <K, V extends AbstractEntity<K>, M> void put(
@@ -226,6 +244,14 @@ public class MapFieldPredicates {
             getter = ue -> ue.getFederatedIdentities()
               .anyMatch(aue -> Objects.equals(idpAlias, aue.getIdentityProvider()) && Objects.equals(idpUserId, aue.getUserId()));
         }
+
+        return mcb.fieldCompare(Boolean.TRUE::equals, getter);
+    }
+
+    private static MapModelCriteriaBuilder<Object, AbstractUserSessionEntity<Object>, UserSessionModel> checkUserSessionContainsAuthenticatedClientSession(MapModelCriteriaBuilder<Object, AbstractUserSessionEntity<Object>, UserSessionModel> mcb, Operator op, Object[] values) {
+        String clientId = ensureEqSingleValue(UserSessionModel.SearchableFields.CLIENT_ID, "client_id", op, values);
+        Function<AbstractUserSessionEntity<Object>, ?> getter;
+        getter = use -> (use.getAuthenticatedClientSessions().containsKey(clientId));
 
         return mcb.fieldCompare(Boolean.TRUE::equals, getter);
     }

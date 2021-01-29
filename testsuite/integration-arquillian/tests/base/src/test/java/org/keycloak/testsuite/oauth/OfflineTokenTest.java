@@ -38,6 +38,7 @@ import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.models.AdminRoles;
 import org.keycloak.models.Constants;
+import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.SessionTimeoutHelper;
 import org.keycloak.protocol.oidc.OIDCConfigAttributes;
@@ -255,16 +256,16 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
         setTimeOffset(3000000);
 
         OAuthClient.AccessTokenResponse response = oauth.doRefreshTokenRequest(newRefreshTokenString, "secret1");
+        RefreshToken newRefreshToken = oauth.parseRefreshToken(newRefreshTokenString);
         Assert.assertEquals(400, response.getStatusCode());
         assertEquals("invalid_grant", response.getError());
 
-        events.expectRefresh(offlineToken.getId(), sessionId)
+        events.expectRefresh(offlineToken.getId(), newRefreshToken.getSessionState())
                 .client("offline-client")
                 .error(Errors.INVALID_TOKEN)
                 .user(userId)
                 .clearDetails()
                 .assertEvent();
-
 
         setTimeOffset(0);
     }
@@ -287,7 +288,6 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
         OAuthClient.AccessTokenResponse response = oauth.doRefreshTokenRequest(offlineTokenString, "secret1");
         AccessToken refreshedToken = oauth.verifyToken(response.getAccessToken());
         Assert.assertEquals(200, response.getStatusCode());
-        Assert.assertEquals(sessionId, refreshedToken.getSessionState());
 
         // Assert new refreshToken in the response
         String newRefreshToken = response.getRefreshToken();
@@ -393,7 +393,7 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
                 .assertEvent();
 
         // Refresh with new refreshToken is successful now
-        testRefreshWithOfflineToken(token, offlineToken2, offlineTokenString2, token.getSessionState(), userId);
+        testRefreshWithOfflineToken(token, offlineToken2, offlineTokenString2, offlineToken2.getSessionState(), userId);
 
         RealmManager.realm(adminClient.realm("test")).revokeRefreshToken(false);
     }
@@ -621,11 +621,14 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
         assertEquals(TokenUtil.TOKEN_TYPE_OFFLINE, offlineToken.getType());
         assertEquals(0, offlineToken.getExpiration());
 
+        String offlineUserSessionId = testingClient.server().fetch((KeycloakSession session) ->
+                session.sessions().getOfflineUserSession(session.realms().getRealmByName("test"), offlineToken.getSessionState()).getId(), String.class);
+
         try (CloseableHttpResponse logoutResponse = oauth.doLogout(offlineTokenString, "secret1")) {
             assertEquals(204, logoutResponse.getStatusLine().getStatusCode());
         }
 
-        events.expectLogout(offlineToken.getSessionState())
+        events.expectLogout(offlineUserSessionId)
                 .client("offline-client")
                 .removeDetail(Details.REDIRECT_URI)
                 .assertEvent();
@@ -752,7 +755,6 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
             offlineToken = oauth.parseRefreshToken(offlineTokenString);
 
             Assert.assertEquals(200, tokenResponse.getStatusCode());
-            Assert.assertEquals(sessionId, refreshedToken.getSessionState());
 
             // wait to expire
             setTimeOffset(offset);

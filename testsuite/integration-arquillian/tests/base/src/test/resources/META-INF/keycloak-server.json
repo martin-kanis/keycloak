@@ -64,6 +64,10 @@
         "provider": "${keycloak.authSession.provider:infinispan}"
     },
 
+    "userSessions": {
+        "provider": "${keycloak.userSession.provider:infinispan}"
+    },
+
     "mapStorage": {
         "provider": "${keycloak.mapStorage.provider:concurrenthashmap}",
         "concurrenthashmap": {
@@ -91,10 +95,6 @@
         "mem": {
             "maxSize": 20000
         }
-    },
-
-    "userSessions": {
-        "provider" : "${keycloak.userSessions.provider:infinispan}"
     },
 
     "timer": {

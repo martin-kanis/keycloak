@@ -19,6 +19,15 @@ package org.keycloak.testsuite.model.parameters;
 import org.keycloak.cluster.infinispan.InfinispanClusterProviderFactory;
 import org.keycloak.connections.infinispan.InfinispanConnectionProviderFactory;
 import org.keycloak.connections.infinispan.InfinispanConnectionSpi;
+import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.UserSessionProviderFactory;
+import org.keycloak.models.UserSessionSpi;
+import org.keycloak.models.session.UserSessionPersisterSpi;
+import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProviderFactory;
+import org.keycloak.sessions.StickySessionEncoderProviderFactory;
+import org.keycloak.sessions.StickySessionEncoderSpi;
+import org.keycloak.storage.UserStorageProvider;
+import org.keycloak.storage.UserStorageProviderFactory;
 import org.keycloak.testsuite.model.KeycloakModelParameters;
 import org.keycloak.models.cache.CacheRealmProviderSpi;
 import org.keycloak.models.cache.CacheUserProviderSpi;
@@ -27,6 +36,9 @@ import org.keycloak.models.cache.infinispan.InfinispanUserCacheProviderFactory;
 import org.keycloak.provider.ProviderFactory;
 import org.keycloak.provider.Spi;
 import com.google.common.collect.ImmutableSet;
+import org.keycloak.timer.TimerProviderFactory;
+import org.keycloak.timer.TimerSpi;
+
 import java.util.Set;
 
 /**
@@ -39,6 +51,9 @@ public class Infinispan extends KeycloakModelParameters {
       .add(CacheRealmProviderSpi.class)
       .add(CacheUserProviderSpi.class)
       .add(InfinispanConnectionSpi.class)
+      .add(StickySessionEncoderSpi.class)
+      .add(TimerSpi.class)
+      .add(UserSessionPersisterSpi.class)
 
       .build();
 
@@ -47,6 +62,9 @@ public class Infinispan extends KeycloakModelParameters {
       .add(InfinispanClusterProviderFactory.class)
       .add(InfinispanConnectionProviderFactory.class)
       .add(InfinispanUserCacheProviderFactory.class)
+      .add(InfinispanUserSessionProviderFactory.class)
+      .add(StickySessionEncoderProviderFactory.class)
+      .add(TimerProviderFactory.class)
       .build();
 
     static {

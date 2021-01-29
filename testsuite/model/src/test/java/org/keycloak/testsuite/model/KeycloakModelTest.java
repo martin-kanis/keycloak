@@ -33,6 +33,7 @@ import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmSpi;
 import org.keycloak.models.RoleSpi;
+import org.keycloak.models.UserSessionSpi;
 import org.keycloak.models.UserSpi;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.provider.Provider;
@@ -172,6 +173,7 @@ public abstract class KeycloakModelTest {
       .add(RealmSpi.class)
       .add(RoleSpi.class)
       .add(StoreFactorySpi.class)
+      .add(UserSessionSpi.class)
       .add(UserSpi.class)
       .build();
 

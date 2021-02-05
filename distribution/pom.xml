@@ -60,6 +60,17 @@
 
     <profiles>
         <profile>
+            <id>legacy-dist</id>
+            <activation>
+                <property>
+                    <name>legacy-dist</name>
+                </property>
+            </activation>
+            <modules>
+                <module>server-legacy-dist</module>
+            </modules>
+        </profile>
+        <profile>
             <id>community</id>
             <activation>
                 <property>

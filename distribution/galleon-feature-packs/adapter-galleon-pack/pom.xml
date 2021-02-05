@@ -23,7 +23,7 @@
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
-    
+
     <groupId>${galleon-adapter-group-id}</groupId>
     <artifactId>keycloak-adapter-galleon-pack</artifactId>
 

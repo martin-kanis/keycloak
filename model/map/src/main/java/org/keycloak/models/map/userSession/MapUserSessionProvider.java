@@ -228,29 +228,42 @@ public class MapUserSessionProvider implements UserSessionProvider {
             return userEntityToAdapterFunc(realm).apply(userSessionEntity);
         }
 
-        // TODO examine why this is not working
-        /*ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
+        // MCB with and, or
+        ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
                 .and(userSessionStore.createCriteriaBuilder().or(
                             userSessionStore.createCriteriaBuilder().compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, uuid),
                             userSessionStore.createCriteriaBuilder().compare(UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, uuid))
-                );*/
-        ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
+                );
+        UserSessionModel userSessionModelMCB = userSessionTx.getUpdatedNotRemoved(mcb)
+                .map(userEntityToAdapterFunc(realm))
+                .findFirst()
+                .orElse(null);
+
+
+        mcb = realmAndOfflineCriteriaBuilder(realm, false)
                 .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, uuid);
 
-        Optional<UserSessionModel> userSessionModel = userSessionTx.getUpdatedNotRemoved(mcb)
+        UserSessionModel userSessionModel = userSessionTx.getUpdatedNotRemoved(mcb)
                 .map(userEntityToAdapterFunc(realm))
-                .findFirst();
+                .findFirst()
+                .orElse(null);
 
-        if (!userSessionModel.isPresent()) {
+        if (userSessionModel == null) {
             mcb = realmAndOfflineCriteriaBuilder(realm, false)
                     .compare(UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, uuid);
-            return userSessionTx.getUpdatedNotRemoved(mcb)
+            userSessionModel = userSessionTx.getUpdatedNotRemoved(mcb)
                     .map(userEntityToAdapterFunc(realm))
                     .findFirst()
                     .orElse(null);
         }
 
-        return userSessionModel.get();
+        if (!Objects.equals(userSessionModelMCB, userSessionModel)) {
+            // It can be reproduced by at least two following tests
+            // ClientStorageTest#testClientStats
+            // OfflineTokenTest#offlineTokenRemoveClientWithTokens
+            throw new RuntimeException("We should not have two different user sessions returned");
+        }
+        return userSessionModel;
     }
 
     @Override

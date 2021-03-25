@@ -229,7 +229,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
         }
 
         // MCB with and, or
-        ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
+        /*ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
                 .and(userSessionStore.createCriteriaBuilder().or(
                             userSessionStore.createCriteriaBuilder().compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, uuid),
                             userSessionStore.createCriteriaBuilder().compare(UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, uuid))
@@ -237,18 +237,18 @@ public class MapUserSessionProvider implements UserSessionProvider {
         UserSessionModel userSessionModelMCB = userSessionTx.getUpdatedNotRemoved(mcb)
                 .map(userEntityToAdapterFunc(realm))
                 .findFirst()
-                .orElse(null);
+                .orElse(null);*/
 
 
-        mcb = realmAndOfflineCriteriaBuilder(realm, false)
+        ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
                 .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, uuid);
 
-        UserSessionModel userSessionModel = userSessionTx.getUpdatedNotRemoved(mcb)
+        return userSessionTx.getUpdatedNotRemoved(mcb)
                 .map(userEntityToAdapterFunc(realm))
                 .findFirst()
                 .orElse(null);
 
-        if (userSessionModel == null) {
+        /*if (userSessionModel == null) {
             mcb = realmAndOfflineCriteriaBuilder(realm, false)
                     .compare(UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, uuid);
             userSessionModel = userSessionTx.getUpdatedNotRemoved(mcb)
@@ -261,9 +261,10 @@ public class MapUserSessionProvider implements UserSessionProvider {
             // It can be reproduced by at least two following tests
             // ClientStorageTest#testClientStats
             // OfflineTokenTest#offlineTokenRemoveClientWithTokens
-            throw new RuntimeException("We should not have two different user sessions returned");
+            //throw new RuntimeException("We should not have two different user sessions returned");
+            System.out.println("");
         }
-        return userSessionModel;
+        return userSessionModel;*/
     }
 
     @Override
@@ -417,7 +418,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
         userSessionTx.getUpdatedNotRemoved(mcb)
             .peek(userEntity -> {
                 userEntity.getAuthenticatedClientSessions().values().forEach(clientSessionTx::delete);
-                userEntity.clearAuthenticatedClientSessions();
+                registerEntityForChanges(userEntity).clearAuthenticatedClientSessions();
+                //userEntity.clearAuthenticatedClientSessions();
                 LOG.debugf("Deleting expired user sessions %s", userEntity.getId());
             })
             .map(MapUserSessionEntity::getId)
@@ -429,7 +431,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
         userSessionTx.getUpdatedNotRemoved(mcb)
             .peek(userEntity -> {
                 userEntity.getAuthenticatedClientSessions().values().forEach(clientSessionTx::delete);
-                userEntity.clearAuthenticatedClientSessions();
+                registerEntityForChanges(userEntity).clearAuthenticatedClientSessions();
+                //userEntity.clearAuthenticatedClientSessions();
                 LOG.debugf("Deleting expired offline user sessions %s", userEntity.getId());
             })
             .map(MapUserSessionEntity::getId)
@@ -749,7 +752,11 @@ public class MapUserSessionProvider implements UserSessionProvider {
     private MapUserSessionEntity getUserSessionById(UUID id) {
         MapUserSessionEntity userSessionEntity = transientUserSessions.get(id);
 
-        return (userSessionEntity == null) ? userSessionTx.read(id) : userSessionEntity;
+        if (userSessionEntity == null) {
+            MapUserSessionEntity userSession = userSessionTx.read(id);
+            return userSession != null ? registerEntityForChanges(userSession) : null;
+        }
+        return userSessionEntity;
     }
 
     private MapAuthenticatedClientSessionEntity toAuthenticatedClientSessionEntity(AuthenticatedClientSessionModel model, boolean offline) {

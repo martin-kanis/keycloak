@@ -33,6 +33,12 @@ import java.util.stream.Stream;
  */
 public interface UserSessionProvider extends Provider {
 
+    /**
+     * Returns currently used Keycloak session.
+     * @return {@link KeycloakSession}
+     */
+    KeycloakSession getKeycloakSession();
+
     AuthenticatedClientSessionModel createClientSession(RealmModel realm, ClientModel client, UserSessionModel userSession);
     AuthenticatedClientSessionModel getClientSession(UserSessionModel userSession, ClientModel client, UUID clientSessionId, boolean offline);
 
@@ -154,10 +160,37 @@ public interface UserSessionProvider extends Provider {
 
     void removeUserSessions(RealmModel realm);
 
-    UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId);
-    UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId);
-    void removeUserLoginFailure(RealmModel realm, String userId);
-    void removeAllUserLoginFailures(RealmModel realm);
+    /**
+     * @deprecated Use {@link UserLoginFailureProvider#getUserLoginFailure(RealmModel, String) getUserLoginFailure} instead.
+     */
+    @Deprecated
+    default UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId) {
+        return getKeycloakSession().loginFailures().getUserLoginFailure(realm, userId);
+    }
+
+    /**
+     * @deprecated Use {@link UserLoginFailureProvider#addUserLoginFailure(RealmModel, String) addUserLoginFailure} instead.
+     */
+    @Deprecated
+    default UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
+        return getKeycloakSession().loginFailures().addUserLoginFailure(realm, userId);
+    }
+
+    /**
+     * @deprecated Use {@link UserLoginFailureProvider#removeUserLoginFailure(RealmModel, String) removeUserLoginFailure} instead.
+     */
+    @Deprecated
+    default void removeUserLoginFailure(RealmModel realm, String userId) {
+        getKeycloakSession().loginFailures().removeUserLoginFailure(realm, userId);
+    }
+
+    /**
+     * @deprecated Use {@link UserLoginFailureProvider#removeAllUserLoginFailures(RealmModel) removeAllUserLoginFailures} instead.
+     */
+    @Deprecated
+    default void removeAllUserLoginFailures(RealmModel realm) {
+        getKeycloakSession().loginFailures().removeAllUserLoginFailures(realm);
+    }
 
     void onRealmRemoved(RealmModel realm);
     void onClientRemoved(RealmModel realm, ClientModel client);

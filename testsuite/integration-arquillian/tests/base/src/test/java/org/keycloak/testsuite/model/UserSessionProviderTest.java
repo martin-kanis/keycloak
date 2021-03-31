@@ -672,10 +672,10 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
     public void loginFailures() {
         testingClient.server().run((KeycloakSession kcSession) -> {
             RealmModel realm = kcSession.realms().getRealmByName("test");
-            UserLoginFailureModel failure1 = kcSession.sessions().addUserLoginFailure(realm, "user1");
+            UserLoginFailureModel failure1 = kcSession.loginFailures().addUserLoginFailure(realm, "user1");
             failure1.incrementFailures();
 
-            UserLoginFailureModel failure2 = kcSession.sessions().addUserLoginFailure(realm, "user2");
+            UserLoginFailureModel failure2 = kcSession.loginFailures().addUserLoginFailure(realm, "user2");
             failure2.incrementFailures();
             failure2.incrementFailures();
         });
@@ -683,10 +683,10 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
         testingClient.server().run((KeycloakSession kcSession) -> {
             RealmModel realm = kcSession.realms().getRealmByName("test");
 
-            UserLoginFailureModel failure1 = kcSession.sessions().getUserLoginFailure(realm, "user1");
+            UserLoginFailureModel failure1 = kcSession.loginFailures().getUserLoginFailure(realm, "user1");
             assertEquals(1, failure1.getNumFailures());
 
-            UserLoginFailureModel failure2 = kcSession.sessions().getUserLoginFailure(realm, "user2");
+            UserLoginFailureModel failure2 = kcSession.loginFailures().getUserLoginFailure(realm, "user2");
             assertEquals(2, failure2.getNumFailures());
 
             // Add the failure, which already exists
@@ -694,30 +694,30 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
 
             assertEquals(2, failure1.getNumFailures());
 
-            failure1 = kcSession.sessions().getUserLoginFailure(realm, "user1");
+            failure1 = kcSession.loginFailures().getUserLoginFailure(realm, "user1");
             failure1.clearFailures();
 
-            failure1 = kcSession.sessions().getUserLoginFailure(realm, "user1");
+            failure1 = kcSession.loginFailures().getUserLoginFailure(realm, "user1");
             assertEquals(0, failure1.getNumFailures());
         });
 
         testingClient.server().run((KeycloakSession kcSession) -> {
             RealmModel realm = kcSession.realms().getRealmByName("test");
-            kcSession.sessions().removeUserLoginFailure(realm, "user1");
+            kcSession.loginFailures().removeUserLoginFailure(realm, "user1");
         });
 
         testingClient.server().run((KeycloakSession kcSession) -> {
             RealmModel realm = kcSession.realms().getRealmByName("test");
 
-            assertNull(kcSession.sessions().getUserLoginFailure(realm, "user1"));
+            assertNull(kcSession.loginFailures().getUserLoginFailure(realm, "user1"));
 
-            kcSession.sessions().removeAllUserLoginFailures(realm);
+            kcSession.loginFailures().removeAllUserLoginFailures(realm);
         });
 
         testingClient.server().run((KeycloakSession kcSession) -> {
             RealmModel realm = kcSession.realms().getRealmByName("test");
-            assertNull(kcSession.sessions().getUserLoginFailure(realm, "user1"));
-            assertNull(kcSession.sessions().getUserLoginFailure(realm, "user2"));
+            assertNull(kcSession.loginFailures().getUserLoginFailure(realm, "user1"));
+            assertNull(kcSession.loginFailures().getUserLoginFailure(realm, "user2"));
         });
     }
 

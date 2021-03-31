@@ -33,7 +33,7 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
     private K id;
 
     /**
-     * Reference to a corresponding offline/online session. No existence of such binding is represented by {@code null}.
+     * Reference to a corresponding offline user session. {@code null} if there is no such offline user session.
      */
     private K correspondingSessionId;
 

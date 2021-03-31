@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public abstract class AbstractAuthenticatedClientSessionEntity<K> implements AbstractEntity<K> {
 
     private K id;
+    private String userSessionId;
     private String realmId;
     private String clientId;
 
@@ -54,12 +55,14 @@ public abstract class AbstractAuthenticatedClientSessionEntity<K> implements Abs
         this.realmId = null;
     }
 
-    public AbstractAuthenticatedClientSessionEntity(K id, String realmId, String clientId, boolean offline) {
+    public AbstractAuthenticatedClientSessionEntity(K id, String userSessionId, String realmId, String clientId, boolean offline) {
         Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(userSessionId, "userSessionId");
         Objects.requireNonNull(realmId, "realmId");
         Objects.requireNonNull(clientId, "clientId");
 
         this.id = id;
+        this.userSessionId = userSessionId;
         this.realmId = realmId;
         this.clientId = clientId;
         this.offline = offline;
@@ -92,6 +95,15 @@ public abstract class AbstractAuthenticatedClientSessionEntity<K> implements Abs
     public void setClientId(String clientId) {
         this.updated |= !Objects.equals(this.clientId, clientId);
         this.clientId = clientId;
+    }
+
+    public String getUserSessionId() {
+        return userSessionId;
+    }
+
+    public void setUserSessionId(String userSessionId) {
+        this.updated |= !Objects.equals(this.userSessionId, userSessionId);
+        this.userSessionId = userSessionId;
     }
 
     public String getAuthMethod() {

@@ -19,7 +19,6 @@ package org.keycloak.models.map.userSession;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.models.UserLoginFailureModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
@@ -38,14 +37,12 @@ public class MapUserSessionProviderFactory extends AbstractMapProviderFactory<Us
 
     private MapStorage<UUID, MapUserSessionEntity, UserSessionModel> userSessionStore;
     private MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore;
-    private MapStorage<UUID, MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureStore;
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
         MapStorageProvider sp = (MapStorageProvider) factory.getProviderFactory(MapStorageProvider.class);
         userSessionStore = sp.getStorage("userSessions", UUID.class, MapUserSessionEntity.class, UserSessionModel.class);
         clientSessionStore = sp.getStorage("clientSessions", UUID.class, MapAuthenticatedClientSessionEntity.class, AuthenticatedClientSessionModel.class);
-        userLoginFailureStore = sp.getStorage("userLoginFailures", UUID.class, MapUserLoginFailureEntity.class, UserLoginFailureModel.class);
 
         factory.register(event -> {
             if (event instanceof UserModel.UserRemovedEvent) {
@@ -64,6 +61,6 @@ public class MapUserSessionProviderFactory extends AbstractMapProviderFactory<Us
 
     @Override
     public UserSessionProvider create(KeycloakSession session) {
-        return new MapUserSessionProvider(session, userSessionStore, clientSessionStore, userLoginFailureStore);
+        return new MapUserSessionProvider(session, userSessionStore, clientSessionStore);
     }
 }

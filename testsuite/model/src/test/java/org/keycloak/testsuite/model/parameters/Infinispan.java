@@ -19,7 +19,9 @@ package org.keycloak.testsuite.model.parameters;
 import org.keycloak.cluster.infinispan.InfinispanClusterProviderFactory;
 import org.keycloak.connections.infinispan.InfinispanConnectionProviderFactory;
 import org.keycloak.connections.infinispan.InfinispanConnectionSpi;
+import org.keycloak.models.UserLoginFailureSpi;
 import org.keycloak.models.session.UserSessionPersisterSpi;
+import org.keycloak.models.sessions.infinispan.InfinispanUserLoginFailureProviderFactory;
 import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProviderFactory;
 import org.keycloak.sessions.StickySessionEncoderProviderFactory;
 import org.keycloak.sessions.StickySessionEncoderSpi;
@@ -50,6 +52,7 @@ public class Infinispan extends KeycloakModelParameters {
       .add(StickySessionEncoderSpi.class)
       .add(TimerSpi.class)
       .add(UserSessionPersisterSpi.class)
+      .add(UserLoginFailureSpi.class)
 
       .build();
 
@@ -59,6 +62,7 @@ public class Infinispan extends KeycloakModelParameters {
       .add(InfinispanConnectionProviderFactory.class)
       .add(InfinispanUserCacheProviderFactory.class)
       .add(InfinispanUserSessionProviderFactory.class)
+      .add(InfinispanUserLoginFailureProviderFactory.class)
       .add(StickySessionEncoderProviderFactory.class)
       .add(TimerProviderFactory.class)
       .build();

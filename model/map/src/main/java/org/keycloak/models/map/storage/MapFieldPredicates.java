@@ -33,7 +33,7 @@ import org.keycloak.models.map.group.AbstractGroupEntity;
 import org.keycloak.models.map.realm.AbstractRealmEntity;
 import org.keycloak.models.map.role.AbstractRoleEntity;
 import org.keycloak.models.map.userSession.AbstractAuthenticatedClientSessionEntity;
-import org.keycloak.models.map.userSession.AbstractUserLoginFailureEntity;
+import org.keycloak.models.map.loginFailure.AbstractUserLoginFailureEntity;
 import org.keycloak.models.map.userSession.AbstractUserSessionEntity;
 import org.keycloak.storage.SearchableModelField;
 import java.util.HashMap;
@@ -122,13 +122,15 @@ public class MapFieldPredicates {
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.BROKER_SESSION_ID,         AbstractUserSessionEntity::getBrokerSessionId);
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.BROKER_USER_ID,            AbstractUserSessionEntity::getBrokerUserId);
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.IS_OFFLINE,                AbstractUserSessionEntity::isOffline);
-        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.IS_EXPIRED,                MapFieldPredicates::isExpired);
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.IS_EXPIRED,                MapFieldPredicates::isUserSessionExpired);
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.LAST_SESSION_REFRESH,      AbstractUserSessionEntity::getLastSessionRefresh);
 
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.REALM_ID,   AbstractAuthenticatedClientSessionEntity::getRealmId);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.CLIENT_ID,  AbstractAuthenticatedClientSessionEntity::getClientId);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, AbstractAuthenticatedClientSessionEntity::isOffline);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP,  AbstractAuthenticatedClientSessionEntity::getTimestamp);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.REALM_ID,         AbstractAuthenticatedClientSessionEntity::getRealmId);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.CLIENT_ID,        AbstractAuthenticatedClientSessionEntity::getClientId);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID,  AbstractAuthenticatedClientSessionEntity::getUserSessionId);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE,       AbstractAuthenticatedClientSessionEntity::isOffline);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP,        AbstractAuthenticatedClientSessionEntity::getTimestamp);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED,       MapFieldPredicates::isClientSessionExpired);
 
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.REALM_ID,  AbstractUserLoginFailureEntity::getRealmId);
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.USER_ID,   AbstractUserLoginFailureEntity::getUserId);
@@ -305,36 +307,60 @@ public class MapFieldPredicates {
         return mcb.fieldCompare(Boolean.TRUE::equals, getter);
     }
 
-    private static MapModelCriteriaBuilder<Object, AbstractUserSessionEntity<Object>, UserSessionModel> isExpired(MapModelCriteriaBuilder<Object, AbstractUserSessionEntity<Object>, UserSessionModel> mcb, Operator op, Object[] values) {
+    private static MapModelCriteriaBuilder<Object, AbstractUserSessionEntity<Object>, UserSessionModel> isUserSessionExpired(MapModelCriteriaBuilder<Object, AbstractUserSessionEntity<Object>, UserSessionModel> mcb, Operator op, Object[] values) {
         if (op != Operator.EQ) {
             throw new CriterionNotSupportedException(UserSessionModel.SearchableFields.IS_EXPIRED, op);
         }
-        if (values == null || values.length != 4) {
-            throw new CriterionNotSupportedException(UserSessionModel.SearchableFields.IS_EXPIRED, op, "Invalid arguments, expected (expiredRememberMe, expiredRefreshRememberMe, expired, expiredRefresh), got: " + Arrays.toString(values));
+        if (values == null || values.length != 5) {
+            throw new CriterionNotSupportedException(UserSessionModel.SearchableFields.IS_EXPIRED, op, "Invalid arguments, expected (expiredRememberMe, expiredRefreshRememberMe, expired, expiredRefresh, expiredOffline), got: " + Arrays.toString(values));
         }
 
         int expiredRememberMe = (int) values[0];
         int expiredRefreshRememberMe = (int) values[1];
         int expired = (int) values[2];
         int expiredRefresh = (int) values[3];
+        int expiredOffline = (int) values[4];
 
         Function<AbstractUserSessionEntity<Object>, ?> getter;
         getter = use -> {
-            if (use.isRememberMe()) {
-                if (use.getStarted() > expiredRememberMe && use.getLastSessionRefresh() > expiredRefreshRememberMe) {
-                    return false;
-                }
+            if (use.isOffline()) {
+                return !(use.getLastSessionRefresh() > expiredOffline);
             } else {
-                if (use.getStarted() > expired && use.getLastSessionRefresh() > expiredRefresh) {
+                if (use.isRememberMe()) {
+                    if (use.getStarted() > expiredRememberMe && use.getLastSessionRefresh() > expiredRefreshRememberMe) {
+                        return false;
+                    }
+                } else {
+                    if (use.getStarted() > expired && use.getLastSessionRefresh() > expiredRefresh) {
+                        return false;
+                    }
+                }
+
+                if (use.getLastSessionRefresh() > expiredRefresh) {
                     return false;
                 }
+                return true;
             }
-
-            if (use.getLastSessionRefresh() > expiredRefresh) {
-                return false;
-            }
-            return true;
         };
+
+        return mcb.fieldCompare(Boolean.TRUE::equals, getter);
+    }
+
+    private static MapModelCriteriaBuilder<Object, AbstractAuthenticatedClientSessionEntity<Object>, AuthenticatedClientSessionModel> isClientSessionExpired(
+            MapModelCriteriaBuilder<Object, AbstractAuthenticatedClientSessionEntity<Object>,
+                    AuthenticatedClientSessionModel> mcb, Operator op, Object[] values) {
+        if (op != Operator.EQ) {
+            throw new CriterionNotSupportedException(AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED, op);
+        }
+        if (values == null || values.length != 2) {
+            throw new CriterionNotSupportedException(AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED, op, "Invalid arguments, expected (clientExpired, expiredOffline), got: " + Arrays.toString(values));
+        }
+
+        int clientExpired = (int) values[0];
+        int expiredOffline = (int) values[1];
+
+        Function<AbstractAuthenticatedClientSessionEntity<Object>, ?> getter;
+        getter = use -> use.isOffline() ? !(use.getTimestamp() > expiredOffline) : !(use.getTimestamp() > clientExpired);
 
         return mcb.fieldCompare(Boolean.TRUE::equals, getter);
     }

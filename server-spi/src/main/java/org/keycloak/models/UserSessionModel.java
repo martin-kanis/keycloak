@@ -29,6 +29,11 @@ public interface UserSessionModel {
 
     class SearchableFields {
         public static final SearchableModelField<UserSessionModel> ID       = new SearchableModelField<>("id", String.class);
+
+        /**
+         * Represents the corresponding offline user session for the online user session.
+         * null if there is no corresponding offline user session.
+         */
         public static final SearchableModelField<UserSessionModel> CORRESPONDING_SESSION_ID = new SearchableModelField<>("correspondingSessionId", String.class);
         public static final SearchableModelField<UserSessionModel> REALM_ID = new SearchableModelField<>("realmId", String.class);
         public static final SearchableModelField<UserSessionModel> USER_ID  = new SearchableModelField<>("userId", String.class);

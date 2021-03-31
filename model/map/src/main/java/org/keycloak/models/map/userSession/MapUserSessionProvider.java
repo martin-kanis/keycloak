@@ -24,7 +24,6 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserLoginFailureModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
@@ -37,6 +36,7 @@ import org.keycloak.models.utils.SessionTimeoutHelper;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -60,10 +60,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
     private final KeycloakSession session;
     protected final MapKeycloakTransaction<UUID, MapUserSessionEntity, UserSessionModel> userSessionTx;
     protected final MapKeycloakTransaction<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionTx;
-    protected final MapKeycloakTransaction<UUID, MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureTx;
     private final MapStorage<UUID, MapUserSessionEntity, UserSessionModel> userSessionStore;
     private final MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore;
-    private final MapStorage<UUID, MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureStore;
 
     /**
      * Storage for transient user sessions which lifespan is limited to one request.
@@ -71,19 +69,15 @@ public class MapUserSessionProvider implements UserSessionProvider {
     private Map<UUID, MapUserSessionEntity> transientUserSessions = new HashMap<>();
 
     public MapUserSessionProvider(KeycloakSession session, MapStorage<UUID, MapUserSessionEntity, UserSessionModel> userSessionStore,
-                                  MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore,
-                                  MapStorage<UUID, MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureStore) {
+                                  MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore) {
         this.session = session;
         this.userSessionStore = userSessionStore;
         this.clientSessionStore = clientSessionStore;
-        this.userLoginFailureStore = userLoginFailureStore;
-        userSessionTx = userSessionStore.createTransaction();
-        clientSessionTx = clientSessionStore.createTransaction();
-        userLoginFailureTx = userLoginFailureStore.createTransaction();
+        userSessionTx = userSessionStore.createTransaction(session);
+        clientSessionTx = clientSessionStore.createTransaction(session);
 
         session.getTransactionManager().enlistAfterCompletion(userSessionTx);
         session.getTransactionManager().enlistAfterCompletion(clientSessionTx);
-        session.getTransactionManager().enlistAfterCompletion(userLoginFailureTx);
     }
 
     private Function<MapUserSessionEntity, UserSessionModel> userEntityToAdapterFunc(RealmModel realm) {
@@ -115,11 +109,6 @@ public class MapUserSessionProvider implements UserSessionProvider {
         };
     }
 
-    private Function<MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureEntityToAdapterFunc(RealmModel realm) {
-        // Clone entity before returning back, to avoid giving away a reference to the live object to the caller
-        return origEntity -> new MapUserLoginFailureAdapter(session, realm, registerEntityForChanges(origEntity));
-    }
-
     private MapUserSessionEntity registerEntityForChanges(MapUserSessionEntity origEntity) {
         MapUserSessionEntity res = userSessionTx.read(origEntity.getId(), id -> Serialization.from(origEntity));
         userSessionTx.updateIfChanged(origEntity.getId(), res, MapUserSessionEntity::isUpdated);
@@ -132,16 +121,15 @@ public class MapUserSessionProvider implements UserSessionProvider {
         return res;
     }
 
-    private MapUserLoginFailureEntity registerEntityForChanges(MapUserLoginFailureEntity origEntity) {
-        MapUserLoginFailureEntity res = userLoginFailureTx.read(origEntity.getId(), id -> Serialization.from(origEntity));
-        userLoginFailureTx.updateIfChanged(origEntity.getId(), res, MapUserLoginFailureEntity::isUpdated);
-        return res;
+    @Override
+    public KeycloakSession getKeycloakSession() {
+        return session;
     }
 
     @Override
     public AuthenticatedClientSessionModel createClientSession(RealmModel realm, ClientModel client, UserSessionModel userSession) {
         MapAuthenticatedClientSessionEntity entity =
-                new MapAuthenticatedClientSessionEntity(UUID.randomUUID(), realm.getId(), client.getId(), false);
+                new MapAuthenticatedClientSessionEntity(UUID.randomUUID(), userSession.getId(), realm.getId(), client.getId(), false);
 
         LOG.tracef("createClientSession(%s, %s, %s)%s", realm, client, userSession, getShortStackTrace());
 
@@ -172,6 +160,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         ModelCriteriaBuilder<AuthenticatedClientSessionModel> mcb = clientSessionStore.createCriteriaBuilder()
                 .compare(AuthenticatedClientSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, clientSessionId)
+                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, userSession.getId())
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, userSession.getRealm().getId())
                 .compare(AuthenticatedClientSessionModel.SearchableFields.CLIENT_ID, ModelCriteriaBuilder.Operator.EQ, client.getId())
                 .compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, offline);
 
@@ -346,11 +336,14 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         LOG.tracef("removeUserSession(%s, %s)%s", realm, session, getShortStackTrace());
 
-        userSessionTx.getUpdatedNotRemoved(mcb).forEach(userSession -> {
-            userSession.getAuthenticatedClientSessions().values().stream().forEach(clientSessionTx::delete);
-            userSessionTx.delete(userSession.getId());
-        });
-
+        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(mcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
+        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
+                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
+        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
+        // TODO
+        //userSessionTx.delete(UUID.randomUUID(), mcb);
+        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
     }
 
     @Override
@@ -361,10 +354,14 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         LOG.tracef("removeUserSessions(%s, %s)%s", realm, user, getShortStackTrace());
 
-        userSessionTx.getUpdatedNotRemoved(mcb).forEach(userSession -> {
-            userSession.getAuthenticatedClientSessions().values().stream().forEach(clientSessionTx::delete);
-            userSessionTx.delete(userSession.getId());
-        });
+        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(mcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
+        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
+                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
+        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
+        // TODO
+        //userSessionTx.delete(UUID.randomUUID(), mcb);
+        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
     }
 
     @Override
@@ -386,49 +383,25 @@ public class MapUserSessionProvider implements UserSessionProvider {
         int clientExpired = Math.min(expired, expiredRememberMe);
 
         // remove expired user sessions and its client sessions
-        ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
+        ModelCriteriaBuilder<UserSessionModel> userSessionMcb = userSessionStore.createCriteriaBuilder()
+                .compare(UserSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
                 .compare(UserSessionModel.SearchableFields.IS_EXPIRED, ModelCriteriaBuilder.Operator.EQ,
-                        expiredRememberMe, expiredRefreshRememberMe, expired, expiredRefresh);
-        userSessionTx.getUpdatedNotRemoved(mcb)
-            .peek(userEntity -> {
-                userEntity.getAuthenticatedClientSessions().values().forEach(clientSessionTx::delete);
-                LOG.debugf("Deleting expired user sessions %s", userEntity.getId());
-            })
-            .map(MapUserSessionEntity::getId)
-            .forEach(userSessionTx::delete);
+                        expiredRememberMe, expiredRefreshRememberMe, expired, expiredRefresh, expiredOffline);
 
-        // remove expired offline user sessions and its client sessions
-        mcb = realmAndOfflineCriteriaBuilder(realm, true)
-                .compare(UserSessionModel.SearchableFields.LAST_SESSION_REFRESH, ModelCriteriaBuilder.Operator.LE, expiredOffline);
-        userSessionTx.getUpdatedNotRemoved(mcb)
-            .peek(userEntity -> {
-                userEntity.getAuthenticatedClientSessions().values().forEach(clientSessionTx::delete);
-                LOG.debugf("Deleting expired offline user sessions %s", userEntity.getId());
-            })
-            .map(MapUserSessionEntity::getId)
-            .forEach(userSessionTx::delete);
+        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(userSessionMcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
 
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> realmClientMcb = clientSessionStore.createCriteriaBuilder()
-                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId());
+        userSessionTx.delete(UUID.randomUUID(), userSessionMcb);
 
         // remove expired client sessions just from the map store
         // the client sessions will be removed lazily from corresponding user sessions when demanded in MapUserSessionAdapter.getAuthenticatedClientSessions
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientMcb = realmClientMcb
-                .compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, false)
-                .compare(AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP, ModelCriteriaBuilder.Operator.LE, clientExpired);
-        clientSessionTx.getUpdatedNotRemoved(clientMcb)
-                .map(MapAuthenticatedClientSessionEntity::getId)
-                .peek(clientSessionId -> LOG.debugf("Deleting expired client session %s", clientSessionId))
-                .forEach(clientSessionTx::delete);
-
-        // remove expired offline client sessions just from the map store
-        // the client sessions will be removed lazily from corresponding user sessions when demanded in MapUserSessionAdapter.getAuthenticatedClientSessions
-        clientMcb = realmClientMcb.compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, true)
-                .compare(AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP, ModelCriteriaBuilder.Operator.LE, expiredOffline);
-        clientSessionTx.getUpdatedNotRemoved(clientMcb)
-                .map(MapAuthenticatedClientSessionEntity::getId)
-                .peek(clientSessionId -> LOG.debugf("Deleting expired offline client session %s", clientSessionId))
-                .forEach(clientSessionTx::delete);
+        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
+                .and(clientSessionStore.createCriteriaBuilder().or(
+                        clientSessionStore.createCriteriaBuilder().compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions),
+                        clientSessionStore.createCriteriaBuilder().compare(AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED, ModelCriteriaBuilder.Operator.EQ, clientExpired, expiredOffline)
+                        )
+                );
+        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
     }
 
     @Override
@@ -437,70 +410,20 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         LOG.tracef("removeUserSessions(%s)%s", realm, getShortStackTrace());
 
-        userSessionTx.getUpdatedNotRemoved(mcb).forEach(userSession -> {
-            userSession.getAuthenticatedClientSessions().values().stream().forEach(clientSessionTx::delete);
-            userSessionTx.delete(userSession.getId());
-        });
-    }
-
-    @Override
-    public UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(UserLoginFailureModel.SearchableFields.USER_ID, ModelCriteriaBuilder.Operator.EQ, userId);
-
-        LOG.tracef("getUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
-
-        return userLoginFailureTx.getUpdatedNotRemoved(mcb)
-                .map(userLoginFailureEntityToAdapterFunc(realm))
-                .findFirst()
-                .orElse(null);
-    }
-
-    @Override
-    public UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(UserLoginFailureModel.SearchableFields.USER_ID, ModelCriteriaBuilder.Operator.EQ, userId);
-
-        LOG.tracef("addUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
-
-        MapUserLoginFailureEntity userLoginFailureEntity = userLoginFailureTx.getUpdatedNotRemoved(mcb).findFirst().orElse(null);
-
-        if (userLoginFailureEntity == null) {
-            userLoginFailureEntity = new MapUserLoginFailureEntity(UUID.randomUUID(), realm.getId(), userId);
-
-            userLoginFailureTx.create(userLoginFailureEntity.getId(), userLoginFailureEntity);
-        }
-
-        return userLoginFailureEntityToAdapterFunc(realm).apply(userLoginFailureEntity);
-    }
-
-    @Override
-    public void removeUserLoginFailure(RealmModel realm, String userId) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(UserLoginFailureModel.SearchableFields.USER_ID, ModelCriteriaBuilder.Operator.EQ, userId);
-
-        LOG.tracef("removeUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
-
-        userLoginFailureTx.delete(UUID.randomUUID(), mcb);
-    }
-
-    @Override
-    public void removeAllUserLoginFailures(RealmModel realm) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId());
-
-        LOG.tracef("removeAllUserLoginFailures(%s)%s", realm, getShortStackTrace());
-
-        userLoginFailureTx.delete(UUID.randomUUID(), mcb);
+        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(mcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
+        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
+                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
+        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
+        // TODO
+        //userSessionTx.delete(UUID.randomUUID(), mcb);
+        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
     }
 
     @Override
     public void onRealmRemoved(RealmModel realm) {
         removeUserSessions(realm);
-        removeAllUserLoginFailures(realm);
+        session.loginFailures().removeAllUserLoginFailures(realm);
     }
 
     @Override
@@ -511,7 +434,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
     protected void onUserRemoved(RealmModel realm, UserModel user) {
         removeUserSessions(realm, user);
 
-        removeUserLoginFailure(realm, user.getId());
+        session.loginFailures().removeUserLoginFailure(realm, user.getId());
     }
 
     @Override
@@ -556,7 +479,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
             if (onlineUserSession.getCorrespondingSessionId() != null) {
                 mcb = realmAndOfflineCriteriaBuilder(realm, true)
                         .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, onlineUserSession.getCorrespondingSessionId());
-                userSessionTx.getUpdatedNotRemoved(mcb).map(MapUserSessionEntity::getId).forEach(userSessionTx::delete);
+                userSessionTx.delete(UUID.randomUUID(), mcb);
                 onlineUserSession.setCorrespondingSessionId(null);
             }
         }
@@ -567,7 +490,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
                                                                       UserSessionModel offlineUserSession) {
         LOG.tracef("createOfflineClientSession(%s, %s)%s", clientSession, offlineUserSession, getShortStackTrace());
 
-        MapAuthenticatedClientSessionEntity clientSessionEntity = createAuthenticatedClientSessionInstance(clientSession, true);
+        MapAuthenticatedClientSessionEntity clientSessionEntity = createAuthenticatedClientSessionInstance(clientSession, offlineUserSession, true);
         clientSessionEntity.setTimestamp(Time.currentTime());
 
         Optional<MapUserSessionEntity> userSessionEntity = getOfflineUserSessionEntityStream(clientSession.getRealm(), offlineUserSession.getId()).findFirst();
@@ -652,7 +575,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
                         pus.isRememberMe(), pus.getBrokerSessionId(), pus.getBrokerUserId(), offline);
 
                 for (Map.Entry<String, AuthenticatedClientSessionModel> entry : pus.getAuthenticatedClientSessions().entrySet()) {
-                    MapAuthenticatedClientSessionEntity clientSession = toAuthenticatedClientSessionEntity(entry.getValue(), offline);
+                    MapAuthenticatedClientSessionEntity clientSession = createAuthenticatedClientSessionInstance(entry.getValue(), entry.getValue().getUserSession(), offline);
 
                     // Update timestamp to same value as userSession. LastSessionRefresh of userSession from DB will have correct value
                     clientSession.setTimestamp(userSessionEntity.getLastSessionRefresh());
@@ -718,19 +641,6 @@ public class MapUserSessionProvider implements UserSessionProvider {
         return userSessionEntity;
     }
 
-    private MapAuthenticatedClientSessionEntity toAuthenticatedClientSessionEntity(AuthenticatedClientSessionModel model, boolean offline) {
-        MapAuthenticatedClientSessionEntity clientSessionEntity = new MapAuthenticatedClientSessionEntity(UUID.randomUUID(),
-                model.getRealm().getId(), model.getClient().getId(), offline);
-        clientSessionEntity.setAction(model.getAction());
-        clientSessionEntity.setAuthMethod(model.getProtocol());
-
-        clientSessionEntity.setNotes(model.getNotes());
-        clientSessionEntity.setRedirectUri(model.getRedirectUri());
-        clientSessionEntity.setTimestamp(model.getTimestamp());
-
-        return clientSessionEntity;
-    }
-
     private MapUserSessionEntity createUserSessionEntityInstance(UserSessionModel userSession, boolean offline) {
         MapUserSessionEntity entity = new MapUserSessionEntity(UUID.randomUUID(), userSession.getRealm().getId());
         entity.setCorrespondingSessionId(UUID.fromString(userSession.getId()));
@@ -753,9 +663,10 @@ public class MapUserSessionProvider implements UserSessionProvider {
         return entity;
     }
 
-    private MapAuthenticatedClientSessionEntity createAuthenticatedClientSessionInstance(AuthenticatedClientSessionModel clientSession, boolean offline) {
+    private MapAuthenticatedClientSessionEntity createAuthenticatedClientSessionInstance(AuthenticatedClientSessionModel clientSession,
+                                                                                         UserSessionModel userSession, boolean offline) {
         MapAuthenticatedClientSessionEntity entity = new MapAuthenticatedClientSessionEntity(UUID.randomUUID(),
-                clientSession.getRealm().getId(), clientSession.getClient().getId(), offline);
+                userSession.getId(), clientSession.getRealm().getId(), clientSession.getClient().getId(), offline);
 
         entity.setAction(clientSession.getAction());
         entity.setAuthMethod(clientSession.getProtocol());

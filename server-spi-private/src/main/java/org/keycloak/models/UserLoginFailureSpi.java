@@ -14,19 +14,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.keycloak.models.map.userSession;
+package org.keycloak.models;
 
-import java.util.UUID;
+import org.keycloak.provider.Provider;
+import org.keycloak.provider.ProviderFactory;
+import org.keycloak.provider.Spi;
 
 /**
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
  */
-public class MapUserLoginFailureEntity extends AbstractUserLoginFailureEntity<UUID> {
-    protected MapUserLoginFailureEntity() {
-        super();
+public class UserLoginFailureSpi implements Spi {
+
+    public static final String NAME = "loginFailure";
+
+    @Override
+    public boolean isInternal() {
+        return true;
     }
 
-    public MapUserLoginFailureEntity(UUID id, String realmId, String userId) {
-        super(id, realmId, userId);
+    @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
+    public Class<? extends Provider> getProviderClass() {
+        return UserLoginFailureProvider.class;
+    }
+
+    @Override
+    public Class<? extends ProviderFactory> getProviderFactoryClass() {
+        return UserLoginFailureProviderFactory.class;
     }
 }

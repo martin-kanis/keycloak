@@ -24,6 +24,7 @@ import org.keycloak.keys.DefaultKeyManager;
 import org.keycloak.models.ClientProvider;
 import org.keycloak.models.ClientScopeProvider;
 import org.keycloak.models.GroupProvider;
+import org.keycloak.models.LoginFailureProvider;
 import org.keycloak.models.TokenManager;
 import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
@@ -90,6 +91,7 @@ public class DefaultKeycloakSession implements KeycloakSession {
     private GroupStorageManager groupStorageManager;
     private UserCredentialStoreManager userCredentialStorageManager;
     private UserSessionProvider sessionProvider;
+    private LoginFailureProvider loginFailureProvider;
     private AuthenticationSessionProvider authenticationSessionProvider;
     private UserFederatedStorageProvider userFederatedStorageProvider;
     private KeycloakContext context;
@@ -445,6 +447,14 @@ public class DefaultKeycloakSession implements KeycloakSession {
             sessionProvider = getProvider(UserSessionProvider.class);
         }
         return sessionProvider;
+    }
+
+    @Override
+    public LoginFailureProvider loginFailures() {
+        if (loginFailureProvider == null) {
+            loginFailureProvider = getProvider(LoginFailureProvider.class);
+        }
+        return loginFailureProvider;
     }
 
     @Override

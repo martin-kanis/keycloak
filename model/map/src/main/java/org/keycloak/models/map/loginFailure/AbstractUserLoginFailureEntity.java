@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.keycloak.models.map.userSession;
+package org.keycloak.models.map.loginFailure;
 
 import org.keycloak.models.map.common.AbstractEntity;
 

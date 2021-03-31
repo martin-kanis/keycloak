@@ -178,6 +178,14 @@ public interface KeycloakSession extends InvalidationHandler {
      */
     UserSessionProvider sessions();
 
+    /**
+     * Returns a managed provider instance.  Will start a provider transaction.  This transaction is managed by the KeycloakSession
+     * transaction.
+     *
+     * @return {@link LoginFailureProvider}
+     * @throws IllegalStateException if transaction is not active
+     */
+    LoginFailureProvider loginFailures();
 
     AuthenticationSessionProvider authenticationSessions();
 

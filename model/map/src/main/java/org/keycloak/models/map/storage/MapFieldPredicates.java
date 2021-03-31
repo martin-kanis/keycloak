@@ -33,7 +33,7 @@ import org.keycloak.models.map.group.AbstractGroupEntity;
 import org.keycloak.models.map.realm.AbstractRealmEntity;
 import org.keycloak.models.map.role.AbstractRoleEntity;
 import org.keycloak.models.map.userSession.AbstractAuthenticatedClientSessionEntity;
-import org.keycloak.models.map.userSession.AbstractUserLoginFailureEntity;
+import org.keycloak.models.map.loginFailure.AbstractUserLoginFailureEntity;
 import org.keycloak.models.map.userSession.AbstractUserSessionEntity;
 import org.keycloak.storage.SearchableModelField;
 import java.util.HashMap;

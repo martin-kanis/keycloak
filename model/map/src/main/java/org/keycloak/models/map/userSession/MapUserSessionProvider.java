@@ -24,7 +24,6 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserLoginFailureModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
@@ -60,10 +59,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
     private final KeycloakSession session;
     protected final MapKeycloakTransaction<UUID, MapUserSessionEntity, UserSessionModel> userSessionTx;
     protected final MapKeycloakTransaction<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionTx;
-    protected final MapKeycloakTransaction<UUID, MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureTx;
     private final MapStorage<UUID, MapUserSessionEntity, UserSessionModel> userSessionStore;
     private final MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore;
-    private final MapStorage<UUID, MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureStore;
 
     /**
      * Storage for transient user sessions which lifespan is limited to one request.
@@ -71,19 +68,15 @@ public class MapUserSessionProvider implements UserSessionProvider {
     private Map<UUID, MapUserSessionEntity> transientUserSessions = new HashMap<>();
 
     public MapUserSessionProvider(KeycloakSession session, MapStorage<UUID, MapUserSessionEntity, UserSessionModel> userSessionStore,
-                                  MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore,
-                                  MapStorage<UUID, MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureStore) {
+                                  MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore) {
         this.session = session;
         this.userSessionStore = userSessionStore;
         this.clientSessionStore = clientSessionStore;
-        this.userLoginFailureStore = userLoginFailureStore;
-        userSessionTx = userSessionStore.createTransaction();
-        clientSessionTx = clientSessionStore.createTransaction();
-        userLoginFailureTx = userLoginFailureStore.createTransaction();
+        userSessionTx = userSessionStore.createTransaction(session);
+        clientSessionTx = clientSessionStore.createTransaction(session);
 
         session.getTransactionManager().enlistAfterCompletion(userSessionTx);
         session.getTransactionManager().enlistAfterCompletion(clientSessionTx);
-        session.getTransactionManager().enlistAfterCompletion(userLoginFailureTx);
     }
 
     private Function<MapUserSessionEntity, UserSessionModel> userEntityToAdapterFunc(RealmModel realm) {
@@ -115,11 +108,6 @@ public class MapUserSessionProvider implements UserSessionProvider {
         };
     }
 
-    private Function<MapUserLoginFailureEntity, UserLoginFailureModel> userLoginFailureEntityToAdapterFunc(RealmModel realm) {
-        // Clone entity before returning back, to avoid giving away a reference to the live object to the caller
-        return origEntity -> new MapUserLoginFailureAdapter(session, realm, registerEntityForChanges(origEntity));
-    }
-
     private MapUserSessionEntity registerEntityForChanges(MapUserSessionEntity origEntity) {
         MapUserSessionEntity res = userSessionTx.read(origEntity.getId(), id -> Serialization.from(origEntity));
         userSessionTx.updateIfChanged(origEntity.getId(), res, MapUserSessionEntity::isUpdated);
@@ -129,12 +117,6 @@ public class MapUserSessionProvider implements UserSessionProvider {
     private MapAuthenticatedClientSessionEntity registerEntityForChanges(MapAuthenticatedClientSessionEntity origEntity) {
         MapAuthenticatedClientSessionEntity res = clientSessionTx.read(origEntity.getId(), id -> Serialization.from(origEntity));
         clientSessionTx.updateIfChanged(origEntity.getId(), res, MapAuthenticatedClientSessionEntity::isUpdated);
-        return res;
-    }
-
-    private MapUserLoginFailureEntity registerEntityForChanges(MapUserLoginFailureEntity origEntity) {
-        MapUserLoginFailureEntity res = userLoginFailureTx.read(origEntity.getId(), id -> Serialization.from(origEntity));
-        userLoginFailureTx.updateIfChanged(origEntity.getId(), res, MapUserLoginFailureEntity::isUpdated);
         return res;
     }
 
@@ -444,63 +426,9 @@ public class MapUserSessionProvider implements UserSessionProvider {
     }
 
     @Override
-    public UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(UserLoginFailureModel.SearchableFields.USER_ID, ModelCriteriaBuilder.Operator.EQ, userId);
-
-        LOG.tracef("getUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
-
-        return userLoginFailureTx.getUpdatedNotRemoved(mcb)
-                .map(userLoginFailureEntityToAdapterFunc(realm))
-                .findFirst()
-                .orElse(null);
-    }
-
-    @Override
-    public UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(UserLoginFailureModel.SearchableFields.USER_ID, ModelCriteriaBuilder.Operator.EQ, userId);
-
-        LOG.tracef("addUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
-
-        MapUserLoginFailureEntity userLoginFailureEntity = userLoginFailureTx.getUpdatedNotRemoved(mcb).findFirst().orElse(null);
-
-        if (userLoginFailureEntity == null) {
-            userLoginFailureEntity = new MapUserLoginFailureEntity(UUID.randomUUID(), realm.getId(), userId);
-
-            userLoginFailureTx.create(userLoginFailureEntity.getId(), userLoginFailureEntity);
-        }
-
-        return userLoginFailureEntityToAdapterFunc(realm).apply(userLoginFailureEntity);
-    }
-
-    @Override
-    public void removeUserLoginFailure(RealmModel realm, String userId) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(UserLoginFailureModel.SearchableFields.USER_ID, ModelCriteriaBuilder.Operator.EQ, userId);
-
-        LOG.tracef("removeUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
-
-        userLoginFailureTx.delete(UUID.randomUUID(), mcb);
-    }
-
-    @Override
-    public void removeAllUserLoginFailures(RealmModel realm) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId());
-
-        LOG.tracef("removeAllUserLoginFailures(%s)%s", realm, getShortStackTrace());
-
-        userLoginFailureTx.delete(UUID.randomUUID(), mcb);
-    }
-
-    @Override
     public void onRealmRemoved(RealmModel realm) {
         removeUserSessions(realm);
-        removeAllUserLoginFailures(realm);
+        session.loginFailures().removeAllUserLoginFailures(realm);
     }
 
     @Override
@@ -511,7 +439,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
     protected void onUserRemoved(RealmModel realm, UserModel user) {
         removeUserSessions(realm, user);
 
-        removeUserLoginFailure(realm, user.getId());
+        session.loginFailures().removeUserLoginFailure(realm, user.getId());
     }
 
     @Override

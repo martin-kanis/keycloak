@@ -125,10 +125,11 @@ public class MapFieldPredicates {
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.IS_EXPIRED,                MapFieldPredicates::isExpired);
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.LAST_SESSION_REFRESH,      AbstractUserSessionEntity::getLastSessionRefresh);
 
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.REALM_ID,   AbstractAuthenticatedClientSessionEntity::getRealmId);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.CLIENT_ID,  AbstractAuthenticatedClientSessionEntity::getClientId);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, AbstractAuthenticatedClientSessionEntity::isOffline);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP,  AbstractAuthenticatedClientSessionEntity::getTimestamp);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.REALM_ID,         AbstractAuthenticatedClientSessionEntity::getRealmId);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.CLIENT_ID,        AbstractAuthenticatedClientSessionEntity::getClientId);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID,  AbstractAuthenticatedClientSessionEntity::getUserSessionId);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE,       AbstractAuthenticatedClientSessionEntity::isOffline);
+        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP,        AbstractAuthenticatedClientSessionEntity::getTimestamp);
 
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.REALM_ID,  AbstractUserLoginFailureEntity::getRealmId);
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.USER_ID,   AbstractUserLoginFailureEntity::getUserId);

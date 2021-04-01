@@ -123,7 +123,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
     @Override
     public AuthenticatedClientSessionModel createClientSession(RealmModel realm, ClientModel client, UserSessionModel userSession) {
         MapAuthenticatedClientSessionEntity entity =
-                new MapAuthenticatedClientSessionEntity(UUID.randomUUID(), realm.getId(), client.getId(), false);
+                new MapAuthenticatedClientSessionEntity(UUID.randomUUID(), userSession.getId(), realm.getId(), client.getId(), false);
 
         LOG.tracef("createClientSession(%s, %s, %s)%s", realm, client, userSession, getShortStackTrace());
 
@@ -154,8 +154,15 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         ModelCriteriaBuilder<AuthenticatedClientSessionModel> mcb = clientSessionStore.createCriteriaBuilder()
                 .compare(AuthenticatedClientSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, clientSessionId)
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, userSession.getRealm().getId())
                 .compare(AuthenticatedClientSessionModel.SearchableFields.CLIENT_ID, ModelCriteriaBuilder.Operator.EQ, client.getId())
                 .compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, offline);
+
+        if (offline) {
+            mcb = mcb.compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, ((MapUserSessionAdapter) userSession).getCorrespondingSessionId());
+        } else {
+            mcb = mcb.compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, userSession.getId());
+        }
 
         return clientSessionTx.getUpdatedNotRemoved(mcb)
                 .map(clientEntityToAdapterFunc(client.getRealm(), client, userSession))
@@ -580,7 +587,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
                         pus.isRememberMe(), pus.getBrokerSessionId(), pus.getBrokerUserId(), offline);
 
                 for (Map.Entry<String, AuthenticatedClientSessionModel> entry : pus.getAuthenticatedClientSessions().entrySet()) {
-                    MapAuthenticatedClientSessionEntity clientSession = toAuthenticatedClientSessionEntity(entry.getValue(), offline);
+                    MapAuthenticatedClientSessionEntity clientSession = createAuthenticatedClientSessionInstance(entry.getValue(), offline);
 
                     // Update timestamp to same value as userSession. LastSessionRefresh of userSession from DB will have correct value
                     clientSession.setTimestamp(userSessionEntity.getLastSessionRefresh());
@@ -646,19 +653,6 @@ public class MapUserSessionProvider implements UserSessionProvider {
         return userSessionEntity;
     }
 
-    private MapAuthenticatedClientSessionEntity toAuthenticatedClientSessionEntity(AuthenticatedClientSessionModel model, boolean offline) {
-        MapAuthenticatedClientSessionEntity clientSessionEntity = new MapAuthenticatedClientSessionEntity(UUID.randomUUID(),
-                model.getRealm().getId(), model.getClient().getId(), offline);
-        clientSessionEntity.setAction(model.getAction());
-        clientSessionEntity.setAuthMethod(model.getProtocol());
-
-        clientSessionEntity.setNotes(model.getNotes());
-        clientSessionEntity.setRedirectUri(model.getRedirectUri());
-        clientSessionEntity.setTimestamp(model.getTimestamp());
-
-        return clientSessionEntity;
-    }
-
     private MapUserSessionEntity createUserSessionEntityInstance(UserSessionModel userSession, boolean offline) {
         MapUserSessionEntity entity = new MapUserSessionEntity(UUID.randomUUID(), userSession.getRealm().getId());
         entity.setCorrespondingSessionId(UUID.fromString(userSession.getId()));
@@ -683,7 +677,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
     private MapAuthenticatedClientSessionEntity createAuthenticatedClientSessionInstance(AuthenticatedClientSessionModel clientSession, boolean offline) {
         MapAuthenticatedClientSessionEntity entity = new MapAuthenticatedClientSessionEntity(UUID.randomUUID(),
-                clientSession.getRealm().getId(), clientSession.getClient().getId(), offline);
+                clientSession.getUserSession().getId(), clientSession.getRealm().getId(), clientSession.getClient().getId(), offline);
 
         entity.setAction(clientSession.getAction());
         entity.setAuthMethod(clientSession.getProtocol());

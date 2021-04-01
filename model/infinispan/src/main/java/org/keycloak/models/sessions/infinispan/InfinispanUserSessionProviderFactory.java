@@ -112,14 +112,6 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
 
     @Override
     public void postInit(final KeycloakSessionFactory factory) {
-        KeycloakModelUtils.runJobInTransaction(factory, (KeycloakSession session) -> {
-            keyGenerator = new InfinispanKeyGenerator();
-            this.remoteCacheInvoker = new RemoteCacheInvoker();
-
-            // Initialize persister for periodically doing bulk DB updates of lastSessionRefresh timestamps of refreshed sessions
-            persisterLastSessionRefreshStore = new PersisterLastSessionRefreshStoreFactory().createAndInit(session, true);
-        });
-
         factory.register(new ProviderEventListener() {
 
             @Override
@@ -130,10 +122,13 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
                     log.debugf("Will preload sessions with transaction timeout %d seconds", preloadTransactionTimeout);
 
                     KeycloakModelUtils.runJobInTransactionWithTimeout(factory, (KeycloakSession session) -> {
+
+                        keyGenerator = new InfinispanKeyGenerator();
                         checkRemoteCaches(session);
                         loadPersistentSessions(factory, getMaxErrors(), getSessionsPerSegment());
                         registerClusterListeners(session);
                         loadSessionsFromRemoteCaches(session);
+
                     }, preloadTransactionTimeout);
 
                 } else if (event instanceof UserModel.UserRemovedEvent) {
@@ -191,6 +186,9 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
 
                 initializer.initCache();
                 initializer.loadSessions();
+
+                // Initialize persister for periodically doing bulk DB updates of lastSessionRefresh timestamps of refreshed sessions
+                persisterLastSessionRefreshStore = new PersisterLastSessionRefreshStoreFactory().createAndInit(session, true);
             }
 
         });
@@ -244,6 +242,8 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
 
 
     protected void checkRemoteCaches(KeycloakSession session) {
+        this.remoteCacheInvoker = new RemoteCacheInvoker();
+
         InfinispanConnectionProvider ispn = session.getProvider(InfinispanConnectionProvider.class);
 
         Cache<String, SessionEntityWrapper<UserSessionEntity>> sessionsCache = ispn.getCache(InfinispanConnectionProvider.USER_SESSION_CACHE_NAME);

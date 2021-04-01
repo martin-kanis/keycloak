@@ -32,6 +32,7 @@ public interface AuthenticatedClientSessionModel extends CommonClientSessionMode
         public static final SearchableModelField<AuthenticatedClientSessionModel> ID      = new SearchableModelField<>("id", String.class);
         public static final SearchableModelField<AuthenticatedClientSessionModel> REALM_ID = new SearchableModelField<>("realmId", String.class);
         public static final SearchableModelField<AuthenticatedClientSessionModel> CLIENT_ID = new SearchableModelField<>("clientId", String.class);
+        public static final SearchableModelField<AuthenticatedClientSessionModel> USER_SESSION_ID = new SearchableModelField<>("userSessionId", String.class);
         public static final SearchableModelField<AuthenticatedClientSessionModel> IS_OFFLINE = new SearchableModelField<>("isOffline", Boolean.class);
         public static final SearchableModelField<AuthenticatedClientSessionModel> TIMESTAMP  = new SearchableModelField<>("timestamp", Integer.class);
     }

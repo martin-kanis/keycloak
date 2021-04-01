@@ -36,6 +36,7 @@ import org.keycloak.models.RoleSpi;
 import org.keycloak.models.UserSessionSpi;
 import org.keycloak.models.UserSpi;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.models.utils.PostMigrationEvent;
 import org.keycloak.provider.Provider;
 import org.keycloak.provider.ProviderFactory;
 import org.keycloak.provider.ProviderManager;
@@ -230,6 +231,7 @@ public abstract class KeycloakModelTest {
             }
         };
         res.init();
+        res.publish(new PostMigrationEvent());
         return res;
     }
 

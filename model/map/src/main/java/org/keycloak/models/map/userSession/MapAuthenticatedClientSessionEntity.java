@@ -27,7 +27,7 @@ public class MapAuthenticatedClientSessionEntity extends AbstractAuthenticatedCl
         super();
     }
 
-    public MapAuthenticatedClientSessionEntity(UUID id, String realmId, String clientId, boolean offline) {
-        super(id, realmId, clientId, offline);
+    public MapAuthenticatedClientSessionEntity(UUID id, String userSessionId, String realmId, String clientId, boolean offline) {
+        super(id, userSessionId, realmId, clientId, offline);
     }
 }

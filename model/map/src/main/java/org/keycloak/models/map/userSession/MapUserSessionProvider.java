@@ -36,6 +36,7 @@ import org.keycloak.models.utils.SessionTimeoutHelper;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -375,49 +376,42 @@ public class MapUserSessionProvider implements UserSessionProvider {
         int clientExpired = Math.min(expired, expiredRememberMe);
 
         // remove expired user sessions and its client sessions
-        ModelCriteriaBuilder<UserSessionModel> mcb = realmAndOfflineCriteriaBuilder(realm, false)
+        ModelCriteriaBuilder<UserSessionModel> userSessionMcb = realmAndOfflineCriteriaBuilder(realm, false)
                 .compare(UserSessionModel.SearchableFields.IS_EXPIRED, ModelCriteriaBuilder.Operator.EQ,
                         expiredRememberMe, expiredRefreshRememberMe, expired, expiredRefresh);
-        userSessionTx.getUpdatedNotRemoved(mcb)
-            .peek(userEntity -> {
-                userEntity.getAuthenticatedClientSessions().values().forEach(clientSessionTx::delete);
-                LOG.debugf("Deleting expired user sessions %s", userEntity.getId());
-            })
-            .map(MapUserSessionEntity::getId)
-            .forEach(userSessionTx::delete);
+        List<MapUserSessionEntity> userSessions = userSessionTx.getUpdatedNotRemoved(userSessionMcb).collect(Collectors.toList());
+
+        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
+                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
+        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
+        userSessionTx.delete(UUID.randomUUID(), userSessionMcb);
 
         // remove expired offline user sessions and its client sessions
-        mcb = realmAndOfflineCriteriaBuilder(realm, true)
+        ModelCriteriaBuilder<UserSessionModel> offlineUserSessionMcb = realmAndOfflineCriteriaBuilder(realm, true)
                 .compare(UserSessionModel.SearchableFields.LAST_SESSION_REFRESH, ModelCriteriaBuilder.Operator.LE, expiredOffline);
-        userSessionTx.getUpdatedNotRemoved(mcb)
-            .peek(userEntity -> {
-                userEntity.getAuthenticatedClientSessions().values().forEach(clientSessionTx::delete);
-                LOG.debugf("Deleting expired offline user sessions %s", userEntity.getId());
-            })
-            .map(MapUserSessionEntity::getId)
-            .forEach(userSessionTx::delete);
-
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> realmClientMcb = clientSessionStore.createCriteriaBuilder()
-                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId());
+        userSessions = userSessionTx.getUpdatedNotRemoved(offlineUserSessionMcb).collect(Collectors.toList());
+        ModelCriteriaBuilder<AuthenticatedClientSessionModel> offlineClientSessions = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
+                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
+        clientSessionTx.delete(UUID.randomUUID(), offlineClientSessions);
+        userSessionTx.delete(UUID.randomUUID(), offlineUserSessionMcb);
 
         // remove expired client sessions just from the map store
         // the client sessions will be removed lazily from corresponding user sessions when demanded in MapUserSessionAdapter.getAuthenticatedClientSessions
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientMcb = realmClientMcb
+        clientSessionMcb = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
                 .compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, false)
                 .compare(AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP, ModelCriteriaBuilder.Operator.LE, clientExpired);
-        clientSessionTx.getUpdatedNotRemoved(clientMcb)
-                .map(MapAuthenticatedClientSessionEntity::getId)
-                .peek(clientSessionId -> LOG.debugf("Deleting expired client session %s", clientSessionId))
-                .forEach(clientSessionTx::delete);
+        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
 
         // remove expired offline client sessions just from the map store
         // the client sessions will be removed lazily from corresponding user sessions when demanded in MapUserSessionAdapter.getAuthenticatedClientSessions
-        clientMcb = realmClientMcb.compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, true)
+        clientSessionMcb = clientSessionStore.createCriteriaBuilder()
+                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
+                .compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, true)
                 .compare(AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP, ModelCriteriaBuilder.Operator.LE, expiredOffline);
-        clientSessionTx.getUpdatedNotRemoved(clientMcb)
-                .map(MapAuthenticatedClientSessionEntity::getId)
-                .peek(clientSessionId -> LOG.debugf("Deleting expired offline client session %s", clientSessionId))
-                .forEach(clientSessionTx::delete);
+        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
     }
 
     @Override

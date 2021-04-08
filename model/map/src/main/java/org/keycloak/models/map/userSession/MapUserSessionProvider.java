@@ -166,8 +166,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
                 .compare(AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE, ModelCriteriaBuilder.Operator.EQ, offline);
 
         return clientSessionTx.getUpdatedNotRemoved(mcb)
-                .map(clientEntityToAdapterFunc(client.getRealm(), client, userSession))
                 .findFirst()
+                .map(clientEntityToAdapterFunc(client.getRealm(), client, userSession))
                 .orElse(null);
     }
 
@@ -226,8 +226,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
                 .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, uuid);
 
         return userSessionTx.getUpdatedNotRemoved(mcb)
-                .map(userEntityToAdapterFunc(realm))
                 .findFirst()
+                .map(userEntityToAdapterFunc(realm))
                 .orElse(null);
     }
 
@@ -279,8 +279,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
         LOG.tracef("getUserSessionByBrokerSessionId(%s, %s)%s", realm, brokerSessionId, getShortStackTrace());
 
         return userSessionTx.getUpdatedNotRemoved(mcb)
-                .map(userEntityToAdapterFunc(realm))
                 .findFirst()
+                .map(userEntityToAdapterFunc(realm))
                 .orElse(null);
     }
 
@@ -459,8 +459,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
         LOG.tracef("getOfflineUserSession(%s, %s)%s", realm, userSessionId, getShortStackTrace());
 
         return getOfflineUserSessionEntityStream(realm, userSessionId)
-                .map(userEntityToAdapterFunc(realm))
                 .findFirst()
+                .map(userEntityToAdapterFunc(realm))
                 .orElse(null);
     }
 
@@ -523,8 +523,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
         LOG.tracef("getOfflineUserSessionByBrokerSessionId(%s, %s)%s", realm, brokerSessionId, getShortStackTrace());
 
         return userSessionTx.getUpdatedNotRemoved(mcb)
-                .map(userEntityToAdapterFunc(realm))
                 .findFirst()
+                .map(userEntityToAdapterFunc(realm))
                 .orElse(null);
     }
 

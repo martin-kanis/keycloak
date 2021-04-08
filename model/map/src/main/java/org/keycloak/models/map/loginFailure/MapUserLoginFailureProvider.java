@@ -69,8 +69,8 @@ public class MapUserLoginFailureProvider implements UserLoginFailureProvider {
         LOG.tracef("getUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
 
         return userLoginFailureTx.getUpdatedNotRemoved(mcb)
-                .map(userLoginFailureEntityToAdapterFunc(realm))
                 .findFirst()
+                .map(userLoginFailureEntityToAdapterFunc(realm))
                 .orElse(null);
     }
 

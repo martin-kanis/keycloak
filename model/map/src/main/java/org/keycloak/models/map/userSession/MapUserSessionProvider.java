@@ -342,8 +342,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
                 .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
         clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
         // TODO
-        //userSessionTx.delete(UUID.randomUUID(), mcb);
-        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
+        userSessionTx.delete(UUID.randomUUID(), mcb);
+        //userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
     }
 
     @Override

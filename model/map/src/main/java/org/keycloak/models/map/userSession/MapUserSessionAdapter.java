@@ -45,14 +45,6 @@ public abstract class MapUserSessionAdapter extends AbstractUserSessionModel<Map
         return entity.getId().toString();
     }
 
-    public String getCorrespondingSessionId() {
-        return entity.getCorrespondingSessionId().toString();
-    }
-
-    public void setCorrespondingSessionId(UUID id) {
-        entity.setCorrespondingSessionId(id);
-    }
-
     @Override
     public RealmModel getRealm() {
         return realm;
@@ -217,7 +209,12 @@ public abstract class MapUserSessionAdapter extends AbstractUserSessionModel<Map
         entity.setLastSessionRefresh(currentTime);
 
         entity.setState(null);
+
+        String correspondingSessionId = entity.getNote(CORRESPONDING_SESSION_ID);
         entity.setNotes(new ConcurrentHashMap<>());
+        if (correspondingSessionId != null)
+            entity.addNote(CORRESPONDING_SESSION_ID, correspondingSessionId);
+
         entity.clearAuthenticatedClientSessions();
     }
 }

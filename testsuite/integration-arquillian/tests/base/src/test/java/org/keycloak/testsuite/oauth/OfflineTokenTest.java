@@ -612,7 +612,6 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
         oauth.verifyToken(tokenResponse.getAccessToken());
         String offlineTokenString = tokenResponse.getRefreshToken();
         RefreshToken offlineToken = oauth.parseRefreshToken(offlineTokenString);
-        String idToken = tokenResponse.getIdToken();
 
         events.expectCodeToToken(codeId, sessionId)
                 .client("offline-client")
@@ -624,10 +623,6 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
 
         String offlineUserSessionId = testingClient.server().fetch((KeycloakSession session) ->
                 session.sessions().getOfflineUserSession(session.realms().getRealmByName("test"), offlineToken.getSessionState()).getId(), String.class);
-
-        // logout online session
-        driver.navigate().to(oauth.getLogoutUrl().redirectUri(oauth.APP_AUTH_ROOT).idTokenHint(idToken).build());
-        events.expectLogout(sessionId).detail(Details.REDIRECT_URI, oauth.APP_AUTH_ROOT).assertEvent();
 
         // logout offline session
         try (CloseableHttpResponse logoutResponse = oauth.doLogout(offlineTokenString, "secret1")) {

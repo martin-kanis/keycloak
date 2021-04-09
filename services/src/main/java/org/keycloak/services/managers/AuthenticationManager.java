@@ -100,6 +100,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.keycloak.common.util.ServerCookie.SameSiteAttributeValue;
+import static org.keycloak.models.UserSessionModel.CORRESPONDING_SESSION_ID;
 import static org.keycloak.protocol.oidc.grants.device.DeviceGrantType.isOAuth2DeviceVerificationFlow;
 import static org.keycloak.services.util.CookieHelper.getCookie;
 
@@ -281,7 +282,11 @@ public class AuthenticationManager {
             new UserSessionManager(session).revokeOfflineUserSession(userSession);
 
             // Check if "online" session still exists and remove it too
-            UserSessionModel onlineUserSession = session.sessions().getUserSession(realm, userSession.getId());
+            String onlineUserSessionId = userSession.getNote(CORRESPONDING_SESSION_ID);
+            UserSessionModel onlineUserSession = (onlineUserSessionId != null) ?
+                    session.sessions().getUserSession(realm, onlineUserSessionId) :
+                    session.sessions().getUserSession(realm, userSession.getId());
+
             if (onlineUserSession != null) {
                 session.sessions().removeUserSession(realm, onlineUserSession);
             }

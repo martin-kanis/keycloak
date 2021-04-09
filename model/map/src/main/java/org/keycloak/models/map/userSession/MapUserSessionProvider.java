@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
+import static org.keycloak.models.UserSessionModel.CORRESPONDING_SESSION_ID;
 import static org.keycloak.models.UserSessionModel.SessionPersistenceState.TRANSIENT;
 import static org.keycloak.utils.StreamsUtil.paginatedStream;
 
@@ -342,8 +343,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
                 .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
         clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
         // TODO
-        userSessionTx.delete(UUID.randomUUID(), mcb);
-        //userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
+        // userSessionTx.delete(UUID.randomUUID(), mcb);
+        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
     }
 
     @Override
@@ -443,8 +444,9 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         MapUserSessionEntity offlineUserSession = createUserSessionEntityInstance(userSession, true);
 
-        // set a reference for the offline user session in the original online user session
-        ((MapUserSessionAdapter) userSession).setCorrespondingSessionId(offlineUserSession.getId());
+        // set a reference for the offline user session to the original online user session
+        userSession.setNote(CORRESPONDING_SESSION_ID, offlineUserSession.getId().toString());
+
         int currentTime = Time.currentTime();
         offlineUserSession.setStarted(currentTime);
         offlineUserSession.setLastSessionRefresh(currentTime);
@@ -473,15 +475,11 @@ public class MapUserSessionProvider implements UserSessionProvider {
         ModelCriteriaBuilder<UserSessionModel> mcb;
         if (userSession.isOffline()) {
             userSessionTx.delete(UUID.fromString(userSession.getId()));
-        } else {
-            MapUserSessionAdapter onlineUserSession = (MapUserSessionAdapter) userSession;
-
-            if (onlineUserSession.getCorrespondingSessionId() != null) {
+        } else if (userSession.getNote(CORRESPONDING_SESSION_ID) != null) {
                 mcb = realmAndOfflineCriteriaBuilder(realm, true)
-                        .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, onlineUserSession.getCorrespondingSessionId());
+                        .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, UUID.fromString(userSession.getNote(CORRESPONDING_SESSION_ID)));
                 userSessionTx.delete(UUID.randomUUID(), mcb);
-                onlineUserSession.setCorrespondingSessionId(null);
-            }
+                userSession.removeNote(CORRESPONDING_SESSION_ID);
         }
     }
 
@@ -615,14 +613,19 @@ public class MapUserSessionProvider implements UserSessionProvider {
         } else {
             // no session found by the given ID, try to find by corresponding session ID
             mcb = realmAndOfflineCriteriaBuilder(realm, true)
-                    .compare(UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, uuid);
+                    .compare(UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID, ModelCriteriaBuilder.Operator.EQ, userSessionId);
             return userSessionTx.getUpdatedNotRemoved(mcb);
         }
 
-        // it's online user session so lookup offline user session by corresponding session reference
-        mcb = realmAndOfflineCriteriaBuilder(realm, true)
-                .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, userSessionEntity.getCorrespondingSessionId());
-        return userSessionTx.getUpdatedNotRemoved(mcb);
+        // it's online user session so lookup offline user session by corresponding session id reference
+        String offlineUserSessionId = userSessionEntity.getNote(CORRESPONDING_SESSION_ID);
+        if (offlineUserSessionId != null) {
+            mcb = realmAndOfflineCriteriaBuilder(realm, true)
+                    .compare(UserSessionModel.SearchableFields.ID, ModelCriteriaBuilder.Operator.EQ, UUID.fromString(offlineUserSessionId));
+            return userSessionTx.getUpdatedNotRemoved(mcb);
+        }
+
+        return Stream.empty();
     }
 
     private ModelCriteriaBuilder<UserSessionModel> realmAndOfflineCriteriaBuilder(RealmModel realm, boolean offline) {
@@ -643,13 +646,14 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
     private MapUserSessionEntity createUserSessionEntityInstance(UserSessionModel userSession, boolean offline) {
         MapUserSessionEntity entity = new MapUserSessionEntity(UUID.randomUUID(), userSession.getRealm().getId());
-        entity.setCorrespondingSessionId(UUID.fromString(userSession.getId()));
 
         entity.setAuthMethod(userSession.getAuthMethod());
         entity.setBrokerSessionId(userSession.getBrokerSessionId());
         entity.setBrokerUserId(userSession.getBrokerUserId());
         entity.setIpAddress(userSession.getIpAddress());
         entity.setNotes(new ConcurrentHashMap<>(userSession.getNotes()));
+        entity.addNote(CORRESPONDING_SESSION_ID, userSession.getId());
+
         entity.clearAuthenticatedClientSessions();
         entity.setRememberMe(userSession.isRememberMe());
         entity.setState(userSession.getState());

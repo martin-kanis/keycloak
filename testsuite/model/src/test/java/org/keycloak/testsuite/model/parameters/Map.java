@@ -16,6 +16,10 @@
  */
 package org.keycloak.testsuite.model.parameters;
 
+import org.keycloak.models.UserLoginFailureSpi;
+import org.keycloak.models.UserSessionSpi;
+import org.keycloak.models.map.loginFailure.MapUserLoginFailureProviderFactory;
+import org.keycloak.models.map.userSession.MapUserSessionProviderFactory;
 import org.keycloak.testsuite.model.KeycloakModelParameters;
 import org.keycloak.models.map.client.MapClientProviderFactory;
 import org.keycloak.models.map.clientscope.MapClientScopeProviderFactory;
@@ -38,6 +42,8 @@ public class Map extends KeycloakModelParameters {
 
     static final Set<Class<? extends Spi>> ALLOWED_SPIS = ImmutableSet.<Class<? extends Spi>>builder()
       .add(MapStorageSpi.class)
+      .add(UserSessionSpi.class)
+      .add(UserLoginFailureSpi.class)
 
       .build();
 
@@ -48,6 +54,8 @@ public class Map extends KeycloakModelParameters {
       .add(MapRoleProviderFactory.class)
       .add(MapUserProviderFactory.class)
       .add(MapStorageProvider.class)
+      .add(MapUserSessionProviderFactory.class)
+      .add(MapUserLoginFailureProviderFactory.class)
       .build();
 
     public Map() {

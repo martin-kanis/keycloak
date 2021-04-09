@@ -51,6 +51,8 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.keycloak.models.UserSessionModel.CORRESPONDING_SESSION_ID;
+
 /**
  *
  * @author hmlnarik
@@ -115,7 +117,7 @@ public class MapFieldPredicates {
         put(AUTHENTICATION_SESSION_PREDICATES, RootAuthenticationSessionModel.SearchableFields.REALM_ID,    AbstractRootAuthenticationSessionEntity::getRealmId);
         put(AUTHENTICATION_SESSION_PREDICATES, RootAuthenticationSessionModel.SearchableFields.TIMESTAMP,   AbstractRootAuthenticationSessionEntity::getTimestamp);
 
-        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID,  AbstractUserSessionEntity::getCorrespondingSessionId);
+        put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID,  use -> use.getNote(CORRESPONDING_SESSION_ID));
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.REALM_ID,                  AbstractUserSessionEntity::getRealmId);
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.USER_ID,                   AbstractUserSessionEntity::getUserId);
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.CLIENT_ID,                 MapFieldPredicates::checkUserSessionContainsAuthenticatedClientSession);

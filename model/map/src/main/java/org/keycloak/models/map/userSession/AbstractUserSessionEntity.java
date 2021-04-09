@@ -32,11 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> {
     private K id;
 
-    /**
-     * Reference to a corresponding offline user session. {@code null} if there is no such offline user session.
-     */
-    private K correspondingSessionId;
-
     private String realmId;
 
     /**
@@ -73,7 +68,6 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
 
     public AbstractUserSessionEntity() {
         this.id = null;
-        this.correspondingSessionId = null;
         this.realmId = null;
     }
 
@@ -82,7 +76,6 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
         Objects.requireNonNull(realmId, "realmId");
 
         this.id = id;
-        this.correspondingSessionId = null;
         this.realmId = realmId;
     }
 
@@ -90,7 +83,6 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
                                      String authMethod, boolean rememberMe, String brokerSessionId, String brokerUserId,
                                      boolean offline) {
         this.id = id;
-        this.correspondingSessionId = null;
         this.realmId = realm.getId();
         this.userId = user.getId();
         this.loginUsername = loginUsername;
@@ -107,15 +99,6 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
     @Override
     public K getId() {
         return this.id;
-    }
-
-    public K getCorrespondingSessionId() {
-        return correspondingSessionId;
-    }
-
-    public void setCorrespondingSessionId(K correspondingSessionId) {
-        this.updated |= !Objects.equals(this.correspondingSessionId, correspondingSessionId);
-        this.correspondingSessionId = correspondingSessionId;
     }
 
     @Override
@@ -215,6 +198,10 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
 
     public Map<String, String> getNotes() {
         return notes;
+    }
+
+    public String getNote(String name) {
+        return notes.get(name);
     }
 
     public void setNotes(Map<String, String> notes) {

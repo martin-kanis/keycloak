@@ -45,6 +45,11 @@ public interface UserSessionModel {
         public static final SearchableModelField<UserSessionModel> LAST_SESSION_REFRESH  = new SearchableModelField<>("lastSessionRefresh", Integer.class);
     }
 
+    /**
+     * Represents the corresponding offline user session.
+     */
+    String CORRESPONDING_SESSION_ID = "correspondingSessionId";
+
     String getId();
     RealmModel getRealm();
 

@@ -50,14 +50,17 @@ import java.util.stream.Stream;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
 import org.keycloak.models.Constants;
+import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProviderFactory;
+import org.hamcrest.Matchers;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
  */
 @RequireProvider(UserSessionPersisterProvider.class)
-@RequireProvider(UserSessionProvider.class)
+@RequireProvider(value = UserSessionProvider.class, only = InfinispanUserSessionProviderFactory.PROVIDER_ID)
 @RequireProvider(UserProvider.class)
 @RequireProvider(RealmProvider.class)
 public class UserSessionPersisterProviderTest extends KeycloakModelTest {
@@ -118,12 +121,11 @@ public class UserSessionPersisterProviderTest extends KeycloakModelTest {
     @Test
     public void testPersistenceWithLoad() {
         int started = Time.currentTime();
-        UserSessionModel[][] origSessions = new UserSessionModel[1][1];
         final UserSessionModel[] userSession = new UserSessionModel[1];
 
-        inComittedTransaction(session -> {
+        UserSessionModel[] origSessions = inComittedTransaction(session -> {
             // Create some sessions in infinispan
-            origSessions[0] = createSessions(session, realmId);
+            return createSessions(session, realmId);
         });
 
         inComittedTransaction(session -> {
@@ -137,7 +139,7 @@ public class UserSessionPersisterProviderTest extends KeycloakModelTest {
         inComittedTransaction(session -> {
             // Persist 1 online session
             RealmModel realm = session.realms().getRealm(realmId);
-            userSession[0] = session.sessions().getUserSession(realm, origSessions[0][0].getId());
+            userSession[0] = session.sessions().getUserSession(realm, origSessions[0].getId());
             persistUserSession(session, userSession[0], false);
         });
 
@@ -151,11 +153,11 @@ public class UserSessionPersisterProviderTest extends KeycloakModelTest {
             // Assert offline sessions
             RealmModel realm = session.realms().getRealm(realmId);
             List<UserSessionModel> loadedSessions = loadPersistedSessionsPaginated(session, true, 2, 2, 3);
-            assertSessions(loadedSessions, origSessions[0]);
+            assertSessions(loadedSessions, new String[] { origSessions[0].getId(), origSessions[1].getId(), origSessions[2].getId() });
 
-            assertSessionLoaded(loadedSessions, origSessions[0][0].getId(), session.users().getUserByUsername(realm, "user1"), "127.0.0.1", started, started, "test-app", "third-party");
-            assertSessionLoaded(loadedSessions, origSessions[0][1].getId(), session.users().getUserByUsername(realm, "user1"), "127.0.0.2", started, started, "test-app");
-            assertSessionLoaded(loadedSessions, origSessions[0][2].getId(), session.users().getUserByUsername(realm, "user2"), "127.0.0.3", started, started, "test-app");
+            assertSessionLoaded(loadedSessions, origSessions[0].getId(), session.users().getUserByUsername(realm, "user1"), "127.0.0.1", started, started, "test-app", "third-party");
+            assertSessionLoaded(loadedSessions, origSessions[1].getId(), session.users().getUserByUsername(realm, "user1"), "127.0.0.2", started, started, "test-app");
+            assertSessionLoaded(loadedSessions, origSessions[2].getId(), session.users().getUserByUsername(realm, "user2"), "127.0.0.3", started, started, "test-app");
         });
     }
 
@@ -464,22 +466,20 @@ public class UserSessionPersisterProviderTest extends KeycloakModelTest {
 
     @Test
     public void testExpiredSessions() {
-        UserSessionModel[][] origSessions = {new UserSessionModel[1]};
         int started = Time.currentTime();
         final UserSessionModel[] userSession1 = {null};
         final UserSessionModel[] userSession2 = {null};
 
-        inComittedTransaction(session -> {
+        UserSessionModel[] origSessions = inComittedTransaction(session -> {
             // Create some sessions in infinispan
-            UserSessionPersisterProvider persister = session.getProvider(UserSessionPersisterProvider.class);
-            origSessions[0] = createSessions(session, realmId);
+            return createSessions(session, realmId);
         });
 
         inComittedTransaction(session -> {
             // Persist 2 offline sessions of 2 users
             RealmModel realm = session.realms().getRealm(realmId);
-            userSession1[0] = session.sessions().getUserSession(realm, origSessions[0][1].getId());
-            userSession2[0] = session.sessions().getUserSession(realm, origSessions[0][2].getId());
+            userSession1[0] = session.sessions().getUserSession(realm, origSessions[1].getId());
+            userSession2[0] = session.sessions().getUserSession(realm, origSessions[2].getId());
             persistUserSession(session, userSession1[0], true);
             persistUserSession(session, userSession2[0], true);
         });
@@ -618,20 +618,12 @@ public class UserSessionPersisterProviderTest extends KeycloakModelTest {
         assertArrayEquals(clients, actualClients);
     }
 
-    public static void assertSessions(List<UserSessionModel> actualSessions, UserSessionModel... expectedSessions) {
-        String[] expected = new String[expectedSessions.length];
-        for (int i = 0; i < expected.length; i++) {
-            expected[i] = expectedSessions[i].getId();
-        }
-
+    public static void assertSessions(List<UserSessionModel> actualSessions, String[] expectedSessionIds) {
         String[] actual = new String[actualSessions.size()];
         for (int i = 0; i < actual.length; i++) {
             actual[i] = actualSessions.get(i).getId();
         }
 
-        Arrays.sort(expected);
-        Arrays.sort(actual);
-
-        assertArrayEquals(expected, actual);
+        assertThat(actual, Matchers.arrayContainingInAnyOrder(expectedSessionIds));
     }
 }

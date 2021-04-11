@@ -51,7 +51,7 @@ import java.util.stream.IntStream;
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
  */
 @RequireProvider(UserSessionPersisterProvider.class)
-@RequireProvider(UserSessionProvider.class)
+@RequireProvider(value=UserSessionProvider.class, only={"infinispan"})
 @RequireProvider(UserProvider.class)
 @RequireProvider(RealmProvider.class)
 public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
@@ -99,8 +99,11 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
     public void testExpired() {
         // Suspend periodic tasks to avoid race-conditions, which may cause missing updates of lastSessionRefresh times to UserSessionPersisterProvider
         TimerProvider timer = kcSession.getProvider(TimerProvider.class);
-        TimerProvider.TimerTaskContext timerTaskCtx = timer.cancelTask(PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
-        log.info("Cancelled periodic task " + PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
+        TimerProvider.TimerTaskContext timerTaskCtx = null;
+        if (timer != null) {
+            timerTaskCtx = timer.cancelTask(PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
+            log.info("Cancelled periodic task " + PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
+        }
 
         InfinispanTestUtil.setTestingTimeService(kcSession);
 
@@ -218,7 +221,9 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
         } finally {
             Time.setOffset(0);
             kcSession.getKeycloakSessionFactory().publish(new ResetTimeOffsetEvent());
-            timer.schedule(timerTaskCtx.getRunnable(), timerTaskCtx.getIntervalMillis(), PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
+            if (timer != null) {
+                timer.schedule(timerTaskCtx.getRunnable(), timerTaskCtx.getIntervalMillis(), PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
+            }
 
             InfinispanTestUtil.revertTimeService(kcSession);
         }

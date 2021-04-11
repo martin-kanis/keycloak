@@ -40,7 +40,6 @@ import static org.keycloak.testsuite.model.UserSessionPersisterProviderTest.crea
  */
 @RequireProvider(UserSessionPersisterProvider.class)
 @RequireProvider(UserSessionProvider.class)
-@RequireProvider(UserLoginFailureProvider.class)
 @RequireProvider(UserProvider.class)
 @RequireProvider(RealmProvider.class)
 public class UserSessionProviderModelTest extends KeycloakModelTest {
@@ -81,17 +80,10 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
 
     @Test
     public void testMultipleSessionsRemovalInOneTransaction() {
-        AtomicReference<UserSessionModel[]> origSessionsAt = new AtomicReference<>();
-
-        inComittedTransaction(session -> {
-            // Create some user sessions
-            UserSessionModel[] origSessions = createSessions(session, realmId);
-            origSessionsAt.set(origSessions);
-        });
+        UserSessionModel[] origSessions = inComittedTransaction(session -> { return createSessions(session, realmId); });
 
         inComittedTransaction(session -> {
             RealmModel realm = session.realms().getRealm(realmId);
-            UserSessionModel[] origSessions = origSessionsAt.get();
 
             UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
             Assert.assertEquals(userSession, origSessions[0]);
@@ -102,7 +94,6 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
 
         inComittedTransaction(session -> {
             RealmModel realm = session.realms().getRealm(realmId);
-            UserSessionModel[] origSessions = origSessionsAt.get();
 
             session.sessions().removeUserSession(realm, origSessions[0]);
             session.sessions().removeUserSession(realm, origSessions[1]);
@@ -110,7 +101,6 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
 
         inComittedTransaction(session -> {
             RealmModel realm = session.realms().getRealm(realmId);
-            UserSessionModel[] origSessions = origSessionsAt.get();
 
             UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
             Assert.assertNull(userSession);

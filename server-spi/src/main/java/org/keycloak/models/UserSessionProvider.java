@@ -58,11 +58,11 @@ public interface UserSessionProvider extends Provider {
     }
 
     /**
-     * Obtains the user sessions associated with the specified user.
+     * Obtains the online user sessions associated with the specified user.
      *
      * @param realm a reference to the realm.
      * @param user the user whose sessions are being searched.
-     * @return a non-null {@link Stream} of user sessions.
+     * @return a non-null {@link Stream} of online user sessions.
      */
     Stream<UserSessionModel> getUserSessionsStream(RealmModel realm, UserModel user);
 
@@ -75,11 +75,11 @@ public interface UserSessionProvider extends Provider {
     }
 
     /**
-     * Obtains the user sessions associated with the specified client.
+     * Obtains the online user sessions associated with the specified client.
      *
      * @param realm a reference to the realm.
      * @param client the client whose user sessions are being searched.
-     * @return a non-null {@link Stream} of user sessions.
+     * @return a non-null {@link Stream} of online user sessions.
      */
     Stream<UserSessionModel> getUserSessionsStream(RealmModel realm, ClientModel client);
 
@@ -92,14 +92,14 @@ public interface UserSessionProvider extends Provider {
     }
 
     /**
-     * Obtains the user sessions associated with the specified client, starting from the {@code firstResult} and containing
+     * Obtains the online user sessions associated with the specified client, starting from the {@code firstResult} and containing
      * at most {@code maxResults}.
      *
      * @param realm a reference tot he realm.
      * @param client the client whose user sessions are being searched.
      * @param firstResult first result to return. Ignored if negative or {@code null}.
      * @param maxResults maximum number of results to return. Ignored if negative or {@code null}.
-     * @return a non-null {@link Stream} of user sessions.
+     * @return a non-null {@link Stream} of online user sessions.
      */
     Stream<UserSessionModel> getUserSessionsStream(RealmModel realm, ClientModel client, Integer firstResult, Integer maxResults);
 
@@ -113,11 +113,11 @@ public interface UserSessionProvider extends Provider {
     }
 
     /**
-     * Obtains the user sessions associated with the user that matches the specified {@code brokerUserId}.
+     * Obtains the online user sessions associated with the user that matches the specified {@code brokerUserId}.
      *
      * @param realm a reference to the realm.
      * @param brokerUserId the id of the broker user whose sessions are being searched.
-     * @return a non-null {@link Stream} of user sessions.
+     * @return a non-null {@link Stream} of online user sessions.
      */
     Stream<UserSessionModel> getUserSessionByBrokerUserIdStream(RealmModel realm, String brokerUserId);
 

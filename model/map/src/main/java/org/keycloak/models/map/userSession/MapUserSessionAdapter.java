@@ -217,4 +217,9 @@ public abstract class MapUserSessionAdapter extends AbstractUserSessionModel<Map
 
         entity.clearAuthenticatedClientSessions();
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s@%08x", getId(), hashCode());
+    }
 }

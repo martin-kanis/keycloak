@@ -33,6 +33,7 @@ import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmSpi;
 import org.keycloak.models.RoleSpi;
+import org.keycloak.models.UserLoginFailureSpi;
 import org.keycloak.models.UserSessionSpi;
 import org.keycloak.models.UserSpi;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -174,6 +175,7 @@ public abstract class KeycloakModelTest {
       .add(RealmSpi.class)
       .add(RoleSpi.class)
       .add(StoreFactorySpi.class)
+      .add(UserLoginFailureSpi.class)
       .add(UserSessionSpi.class)
       .add(UserSpi.class)
       .build();
@@ -236,11 +238,10 @@ public abstract class KeycloakModelTest {
     }
 
     public static void reinitializeKeycloakSessionFactory() {
-        DefaultKeycloakSessionFactory f = createKeycloakSessionFactory();
         if (FACTORY != null) {
             FACTORY.close();
         }
-        FACTORY = f;
+        FACTORY = createKeycloakSessionFactory();
     }
 
     @BeforeClass

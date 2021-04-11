@@ -36,7 +36,6 @@ import org.keycloak.models.utils.SessionTimeoutHelper;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -67,7 +66,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
     /**
      * Storage for transient user sessions which lifespan is limited to one request.
      */
-    private Map<UUID, MapUserSessionEntity> transientUserSessions = new HashMap<>();
+    private final Map<UUID, MapUserSessionEntity> transientUserSessions = new HashMap<>();
 
     public MapUserSessionProvider(KeycloakSession session, MapStorage<UUID, MapUserSessionEntity, UserSessionModel> userSessionStore,
                                   MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore) {
@@ -337,14 +336,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         LOG.tracef("removeUserSession(%s, %s)%s", realm, session, getShortStackTrace());
 
-        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(mcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
-                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
-        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
-        // TODO
-        // userSessionTx.delete(UUID.randomUUID(), mcb);
-        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
+        userSessionTx.delete(UUID.randomUUID(), mcb);
     }
 
     @Override
@@ -355,14 +347,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         LOG.tracef("removeUserSessions(%s, %s)%s", realm, user, getShortStackTrace());
 
-        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(mcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
-                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
-        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
-        // TODO
-        //userSessionTx.delete(UUID.randomUUID(), mcb);
-        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
+        userSessionTx.delete(UUID.randomUUID(), mcb);
     }
 
     @Override
@@ -389,20 +374,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
                 .compare(UserSessionModel.SearchableFields.IS_EXPIRED, ModelCriteriaBuilder.Operator.EQ,
                         expiredRememberMe, expiredRefreshRememberMe, expired, expiredRefresh, expiredOffline);
 
-        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(userSessionMcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
-
         userSessionTx.delete(UUID.randomUUID(), userSessionMcb);
-
-        // remove expired client sessions just from the map store
-        // the client sessions will be removed lazily from corresponding user sessions when demanded in MapUserSessionAdapter.getAuthenticatedClientSessions
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
-                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .and(clientSessionStore.createCriteriaBuilder().or(
-                        clientSessionStore.createCriteriaBuilder().compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions),
-                        clientSessionStore.createCriteriaBuilder().compare(AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED, ModelCriteriaBuilder.Operator.EQ, clientExpired, expiredOffline)
-                        )
-                );
-        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
     }
 
     @Override
@@ -411,14 +383,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         LOG.tracef("removeUserSessions(%s)%s", realm, getShortStackTrace());
 
-        List<String> userSessions = userSessionTx.getUpdatedNotRemoved(mcb).map(MapUserSessionEntity::getId).map(UUID::toString).collect(Collectors.toList());
-        ModelCriteriaBuilder<AuthenticatedClientSessionModel> clientSessionMcb = clientSessionStore.createCriteriaBuilder()
-                .compare(AuthenticatedClientSessionModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realm.getId())
-                .compare(AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID, ModelCriteriaBuilder.Operator.IN, userSessions);
-        clientSessionTx.delete(UUID.randomUUID(), clientSessionMcb);
-        // TODO
-        //userSessionTx.delete(UUID.randomUUID(), mcb);
-        userSessions.stream().map(UUID::fromString).forEach(userSessionTx::delete);
+        userSessionTx.delete(UUID.randomUUID(), mcb);
     }
 
     @Override

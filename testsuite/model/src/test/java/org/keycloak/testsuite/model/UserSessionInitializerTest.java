@@ -32,16 +32,12 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
-import org.keycloak.models.UserSessionProviderFactory;
-import org.keycloak.models.map.userSession.MapUserSessionProvider;
 import org.keycloak.models.session.UserSessionPersisterProvider;
 import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProvider;
 import org.keycloak.services.managers.UserSessionManager;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
@@ -56,6 +52,7 @@ import static org.junit.Assert.assertThat;
 @RequireProvider(UserProvider.class)
 @RequireProvider(RealmProvider.class)
 public class UserSessionInitializerTest extends KeycloakModelTest {
+
     private String realmId;
 
     @Override
@@ -92,27 +89,13 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
 
     @Test
     public void testUserSessionInitializer() {
-        AtomicReference<Integer> startedAtomic = new AtomicReference<>();
-        AtomicReference<UserSessionModel[]> origSessionsAtomic = new AtomicReference<>();
+        String[] origSessionIds = createSessionsInPersisterOnly();
+        int started = Time.currentTime();
 
-        inComittedTransaction(session -> {
-            int started = Time.currentTime();
-            startedAtomic.set(started);
-
-            UserSessionModel[] origSessions = createSessionsInPersisterOnly();
-            origSessionsAtomic.set(origSessions);
-
-            // Load sessions from persister into infinispan/memory
-            UserSessionProviderFactory userSessionFactory = (UserSessionProviderFactory) session.getKeycloakSessionFactory().getProviderFactory(UserSessionProvider.class);
-            userSessionFactory.loadPersistentSessions(session.getKeycloakSessionFactory(), 1, 2);
-        });
+        reinitializeKeycloakSessionFactory();
 
         inComittedTransaction(session -> {
             RealmModel realm = session.realms().getRealm(realmId);
-
-            int started = startedAtomic.get();
-
-            UserSessionModel[] origSessions = origSessionsAtomic.get();
 
             // Assert sessions are in
             ClientModel testApp = realm.getClientByClientId("test-app");
@@ -123,44 +106,31 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
 
             List<UserSessionModel> loadedSessions = session.sessions().getOfflineUserSessionsStream(realm, testApp, 0, 10)
                     .collect(Collectors.toList());
-            UserSessionPersisterProviderTest.assertSessions(loadedSessions, origSessions);
+            UserSessionPersisterProviderTest.assertSessions(loadedSessions, origSessionIds);
 
-            assertSessionLoaded(loadedSessions, origSessions[0].getId(), session.users().getUserByUsername(realm, "user1"), "127.0.0.1", started, started, "test-app", "third-party");
-            assertSessionLoaded(loadedSessions, origSessions[1].getId(), session.users().getUserByUsername(realm, "user1"), "127.0.0.2", started, started, "test-app");
-            assertSessionLoaded(loadedSessions, origSessions[2].getId(), session.users().getUserByUsername(realm, "user2"), "127.0.0.3", started, started, "test-app");
+            assertSessionLoaded(loadedSessions, origSessionIds[0], session.users().getUserByUsername(realm, "user1"), "127.0.0.1", started, started, "test-app", "third-party");
+            assertSessionLoaded(loadedSessions, origSessionIds[1], session.users().getUserByUsername(realm, "user1"), "127.0.0.2", started, started, "test-app");
+            assertSessionLoaded(loadedSessions, origSessionIds[2], session.users().getUserByUsername(realm, "user2"), "127.0.0.3", started, started, "test-app");
         });
     }
 
     @Test
     public void testUserSessionInitializerWithDeletingClient() {
-        AtomicReference<Integer> startedAtomic = new AtomicReference<>();
-        AtomicReference<UserSessionModel[]> origSessionsAtomic = new AtomicReference<>();
+        String[] origSessionIds = createSessionsInPersisterOnly();
+        int started = Time.currentTime();
 
         inComittedTransaction(session -> {
             RealmModel realm = session.realms().getRealm(realmId);
 
-            int started = Time.currentTime();
-            startedAtomic.set(started);
-
-            origSessionsAtomic.set(createSessionsInPersisterOnly());
-
-            // Delete one of the clients now. Delete it directly in DB just for the purpose of simulating the issue (normally clients should be removed through ClientManager)
+            // Delete one of the clients now
             ClientModel testApp = realm.getClientByClientId("test-app");
             realm.removeClient(testApp.getId());
         });
 
-        inComittedTransaction(session -> {
-            // Load sessions from persister into infinispan/memory
-            UserSessionProviderFactory userSessionFactory = (UserSessionProviderFactory) session.getKeycloakSessionFactory().getProviderFactory(UserSessionProvider.class);
-            userSessionFactory.loadPersistentSessions(session.getKeycloakSessionFactory(), 1, 2);
-        });
+        reinitializeKeycloakSessionFactory();
 
         inComittedTransaction(session -> {
             RealmModel realm = session.realms().getRealm(realmId);
-
-            int started = startedAtomic.get();
-
-            UserSessionModel[] origSessions = origSessionsAtomic.get();
 
             // Assert sessions are in
             ClientModel thirdparty = realm.getClientByClientId("third-party");
@@ -170,7 +140,7 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
                     .collect(Collectors.toList());
 
             assertThat("Size of loaded Sessions", loadedSessions.size(), is(1));
-            assertSessionLoaded(loadedSessions, origSessions[0].getId(), session.users().getUserByUsername(realm, "user1"), "127.0.0.1", started, started, "third-party");
+            assertSessionLoaded(loadedSessions, origSessionIds[0], session.users().getUserByUsername(realm, "user1"), "127.0.0.1", started, started, "third-party");
 
             // Revert client
             realm.addClient("test-app");
@@ -179,25 +149,23 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
     }
 
     // Create sessions in persister + infinispan, but then delete them from infinispan cache. This is to allow later testing of initializer. Return the list of "origSessions"
-    private UserSessionModel[] createSessionsInPersisterOnly() {
-        AtomicReference<UserSessionModel[]> origSessionsAtomic = new AtomicReference<>();
-
-        inComittedTransaction(session -> {
-            UserSessionModel[] origSessions = UserSessionPersisterProviderTest.createSessions(session, realmId);
-            origSessionsAtomic.set(origSessions);
-        });
+    private String[] createSessionsInPersisterOnly() {
+        UserSessionModel[] origSessions = inComittedTransaction(session -> { return UserSessionPersisterProviderTest.createSessions(session, realmId); });
+        String[] res = new String[origSessions.length];
 
         inComittedTransaction(session -> {
             RealmModel realm = session.realms().getRealm(realmId);
             UserSessionManager sessionManager = new UserSessionManager(session);
 
-            UserSessionModel[] origSessions = origSessionsAtomic.get();
-
+            int i = 0;
             for (UserSessionModel origSession : origSessions) {
                 UserSessionModel userSession = session.sessions().getUserSession(realm, origSession.getId());
                 for (AuthenticatedClientSessionModel clientSession : userSession.getAuthenticatedClientSessions().values()) {
                     sessionManager.createOrUpdateOfflineSession(clientSession, userSession);
                 }
+                String cs = userSession.getNote(UserSessionModel.CORRESPONDING_SESSION_ID);
+                res[i] = cs == null ? userSession.getId() : cs;
+                i++;
             }
         });
 
@@ -207,29 +175,31 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
             // Delete local user cache (persisted sessions are still kept)
             UserSessionProvider provider = session.getProvider(UserSessionProvider.class);
             if (provider instanceof InfinispanUserSessionProvider) {
+                // Remove in-memory representation of the offline sessions
                 ((InfinispanUserSessionProvider) provider).removeLocalUserSessions(realm.getId(), true);
-            } else if (provider instanceof MapUserSessionProvider) {
-                Stream.of(session.users().getUserByUsername(realm, "user1"), session.users().getUserByUsername(realm, "user2"))
-                        .flatMap(model -> provider.getUserSessionsStream(realm, model))
-                        .filter(UserSessionModel::isOffline)
-                        .forEach(uSession -> provider.removeUserSession(realm, uSession));
-            }
 
-            // Clear ispn cache to ensure initializerState is removed as well
-            InfinispanConnectionProvider infinispan = session.getProvider(InfinispanConnectionProvider.class);
-            infinispan.getCache(InfinispanConnectionProvider.WORK_CACHE_NAME).clear();
+                // Clear ispn cache to ensure initializerState is removed as well
+                InfinispanConnectionProvider infinispan = session.getProvider(InfinispanConnectionProvider.class);
+                if (infinispan != null) {
+                    infinispan.getCache(InfinispanConnectionProvider.WORK_CACHE_NAME).clear();
+                }
+            }
         });
 
         inComittedTransaction(session -> {
-            RealmModel realm = session.realms().getRealm(realmId);
+            // This is only valid in infinispan provider where the offline session is loaded upon start and never reloaded
+            UserSessionProvider provider = session.getProvider(UserSessionProvider.class);
+            if (provider instanceof InfinispanUserSessionProvider) {
+                RealmModel realm = session.realms().getRealm(realmId);
 
-            ClientModel testApp = realm.getClientByClientId("test-app");
-            ClientModel thirdparty = realm.getClientByClientId("third-party");
-            assertThat("Count of offline sessions for client 'test-app'", session.sessions().getOfflineSessionsCount(realm, testApp), is((long) 0));
-            assertThat("Count of offline sessions for client 'third-party'", session.sessions().getOfflineSessionsCount(realm, thirdparty), is((long) 0));
+                ClientModel testApp = realm.getClientByClientId("test-app");
+                ClientModel thirdparty = realm.getClientByClientId("third-party");
+                assertThat("Count of offline sessions for client 'test-app'", session.sessions().getOfflineSessionsCount(realm, testApp), is((long) 0));
+                assertThat("Count of offline sessions for client 'third-party'", session.sessions().getOfflineSessionsCount(realm, thirdparty), is((long) 0));
+            }
         });
 
-        return origSessionsAtomic.get();
+        return res;
     }
 
     private void assertSessionLoaded(List<UserSessionModel> sessions, String id, UserModel user, String ipAddress, int started, int lastRefresh, String... clients) {

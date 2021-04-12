@@ -18,19 +18,21 @@ package org.keycloak.testsuite.model;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.keycloak.common.util.Time;
+import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.Constants;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmProvider;
-import org.keycloak.models.UserLoginFailureProvider;
 import org.keycloak.models.UserManager;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.map.userSession.MapUserSessionProviderFactory;
 import org.keycloak.models.session.UserSessionPersisterProvider;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.UUID;
 
 import static org.keycloak.testsuite.model.UserSessionPersisterProviderTest.createClients;
 import static org.keycloak.testsuite.model.UserSessionPersisterProviderTest.createSessions;
@@ -39,7 +41,7 @@ import static org.keycloak.testsuite.model.UserSessionPersisterProviderTest.crea
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
  */
 @RequireProvider(UserSessionPersisterProvider.class)
-@RequireProvider(UserSessionProvider.class)
+@RequireProvider(value = UserSessionProvider.class, only = MapUserSessionProviderFactory.PROVIDER_ID)
 @RequireProvider(UserProvider.class)
 @RequireProvider(RealmProvider.class)
 public class UserSessionProviderModelTest extends KeycloakModelTest {
@@ -86,10 +88,10 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
             RealmModel realm = session.realms().getRealm(realmId);
 
             UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
-            Assert.assertEquals(userSession, origSessions[0]);
+            Assert.assertEquals(origSessions[0], userSession);
 
             userSession = session.sessions().getUserSession(realm, origSessions[1].getId());
-            Assert.assertEquals(userSession, origSessions[1]);
+            Assert.assertEquals(origSessions[1], userSession);
         });
 
         inComittedTransaction(session -> {
@@ -107,6 +109,54 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
 
             userSession = session.sessions().getUserSession(realm, origSessions[1].getId());
             Assert.assertNull(userSession);
+        });
+    }
+
+    @Test
+    public void testExpiredClientSessions() {
+        UserSessionModel[] origSessions = inComittedTransaction(session -> {
+            // create some user and client sessions
+            return createSessions(session, realmId);
+        });
+
+        inComittedTransaction(session -> {
+            RealmModel realm = session.realms().getRealm(realmId);
+
+            UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
+            Assert.assertEquals(origSessions[0], userSession);
+
+            AuthenticatedClientSessionModel clientSession = session.sessions().getClientSession(userSession, realm.getClientByClientId("test-app"),
+                    UUID.fromString(origSessions[0].getAuthenticatedClientSessionByClient(realm.getClientByClientId("test-app").getId()).getId()),
+                    false);
+            Assert.assertEquals(origSessions[0].getAuthenticatedClientSessionByClient(realm.getClientByClientId("test-app").getId()).getId(), clientSession.getId());
+
+            userSession = session.sessions().getUserSession(realm, origSessions[1].getId());
+            Assert.assertEquals(origSessions[1], userSession);
+        });
+
+        inComittedTransaction(session -> {
+            RealmModel realm = session.realms().getRealm(realmId);
+
+            // expand lifetime of user sessions
+            origSessions[0].setLastSessionRefresh(origSessions[0].getLastSessionRefresh() + 3456000);
+
+            // set time offset by 40 days
+            Time.setOffset(3456000);
+            log.infof("Set time offset to 3456000. Time is: %d", Time.currentTime());
+
+            // remove expired sessions explicitly for MapUserSessionProvider
+            session.sessions().removeExpired(realm);
+        });
+
+        inComittedTransaction(session -> {
+            RealmModel realm = session.realms().getRealm(realmId);
+
+            // assert the user session is still there
+            UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
+            Assert.assertEquals(origSessions[0], userSession);
+
+            // assert the client sessions are expired
+            Assert.assertEquals(0, session.sessions().getActiveClientSessionStats(realm, false).size());
         });
     }
 }

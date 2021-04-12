@@ -42,7 +42,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -108,16 +107,13 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
         InfinispanTestUtil.setTestingTimeService(kcSession);
 
         try {
-            AtomicReference<UserSessionModel[]> origSessionsAt = new AtomicReference<>();
-
             // Key is userSessionId, value is set of client UUIDS
             Map<String, Set<String>> offlineSessions = new HashMap<>();
             ClientModel[] testApp = new ClientModel[1];
 
-            inComittedTransaction(session -> {
+            UserSessionModel[] origSessions = inComittedTransaction(session -> {
                 // Create some online sessions in infinispan
-                UserSessionModel[] origSessions = UserSessionPersisterProviderTest.createSessions(session, realmId);
-                origSessionsAt.set(origSessions);
+                return UserSessionPersisterProviderTest.createSessions(session, realmId);
             });
 
             inComittedTransaction(session -> {
@@ -142,7 +138,6 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
             inComittedTransaction(session -> {
                 RealmModel realm = session.realms().getRealm(realmId);
                 persister = session.getProvider(UserSessionPersisterProvider.class);
-                UserSessionModel[] origSessions = origSessionsAt.get();
 
                 UserSessionModel session0 = session.sessions().getOfflineUserSession(realm, origSessions[0].getId());
                 Assert.assertNotNull(session0);
@@ -165,7 +160,6 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
                 int timeOffset = 1728000 + (i * 86400);
 
                 RealmModel realm = session.realms().getRealm(realmId);
-                UserSessionModel[] origSessions = origSessionsAt.get();
                 Time.setOffset(timeOffset);
                 log.infof("Set time offset to %d. Time is: %d", timeOffset, Time.currentTime());
 
@@ -191,7 +185,6 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
             inComittedTransaction(session -> {
                 RealmModel realm = session.realms().getRealm(realmId);
                 persister = session.getProvider(UserSessionPersisterProvider.class);
-                UserSessionModel[] origSessions = origSessionsAt.get();
 
                 // assert session0 is the only session found
                 Assert.assertNotNull(session.sessions().getOfflineUserSession(realm, origSessions[0].getId()));

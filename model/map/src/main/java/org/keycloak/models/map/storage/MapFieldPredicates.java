@@ -132,7 +132,6 @@ public class MapFieldPredicates {
         put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID,  AbstractAuthenticatedClientSessionEntity::getUserSessionId);
         put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE,       AbstractAuthenticatedClientSessionEntity::isOffline);
         put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP,        AbstractAuthenticatedClientSessionEntity::getTimestamp);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED,       MapFieldPredicates::isClientSessionExpired);
 
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.REALM_ID,  AbstractUserLoginFailureEntity::getRealmId);
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.USER_ID,   AbstractUserLoginFailureEntity::getUserId);
@@ -344,25 +343,6 @@ public class MapFieldPredicates {
                 return true;
             }
         };
-
-        return mcb.fieldCompare(Boolean.TRUE::equals, getter);
-    }
-
-    private static MapModelCriteriaBuilder<Object, AbstractAuthenticatedClientSessionEntity<Object>, AuthenticatedClientSessionModel> isClientSessionExpired(
-            MapModelCriteriaBuilder<Object, AbstractAuthenticatedClientSessionEntity<Object>,
-                    AuthenticatedClientSessionModel> mcb, Operator op, Object[] values) {
-        if (op != Operator.EQ) {
-            throw new CriterionNotSupportedException(AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED, op);
-        }
-        if (values == null || values.length != 2) {
-            throw new CriterionNotSupportedException(AuthenticatedClientSessionModel.SearchableFields.IS_EXPIRED, op, "Invalid arguments, expected (clientExpired, expiredOffline), got: " + Arrays.toString(values));
-        }
-
-        int clientExpired = (int) values[0];
-        int expiredOffline = (int) values[1];
-
-        Function<AbstractAuthenticatedClientSessionEntity<Object>, ?> getter;
-        getter = use -> use.isOffline() ? !(use.getTimestamp() > expiredOffline) : !(use.getTimestamp() > clientExpired);
 
         return mcb.fieldCompare(Boolean.TRUE::equals, getter);
     }

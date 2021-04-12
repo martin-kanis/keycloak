@@ -140,4 +140,9 @@ public abstract class MapAuthenticatedClientSessionAdapter extends AbstractAuthe
     public void setProtocol(String method) {
         entity.setAuthMethod(method);
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s@%08x", getId(), hashCode());
+    }
 }

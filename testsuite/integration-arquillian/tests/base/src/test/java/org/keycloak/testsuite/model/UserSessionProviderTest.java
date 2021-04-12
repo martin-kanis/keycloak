@@ -590,6 +590,8 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
     @ModelTest
     public void testAuthenticatedClientSessions(KeycloakSession session) {
         RealmModel realm = session.realms().getRealmByName("test");
+        realm.setSsoSessionIdleTimeout(1800);
+        realm.setSsoSessionMaxLifespan(36000);
         UserSessionModel userSession = session.sessions().createUserSession(realm, session.users().getUserByUsername(realm, "user1"), "user1", "127.0.0.2", "form", true, null, null);
 
         ClientModel client1 = realm.getClientByClientId("test-app");
@@ -598,19 +600,21 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
         // Create client1 session
         AuthenticatedClientSessionModel clientSession1 = session.sessions().createClientSession(realm, client1, userSession);
         clientSession1.setAction("foo1");
-        clientSession1.setTimestamp(100);
+        int currentTime1 = Time.currentTime();
+        clientSession1.setTimestamp(currentTime1);
 
         // Create client2 session
         AuthenticatedClientSessionModel clientSession2 = session.sessions().createClientSession(realm, client2, userSession);
         clientSession2.setAction("foo2");
-        clientSession2.setTimestamp(200);
+        int currentTime2 = Time.currentTime();
+        clientSession2.setTimestamp(currentTime2);
 
         // Ensure sessions are here
         userSession = session.sessions().getUserSession(realm, userSession.getId());
         Map<String, AuthenticatedClientSessionModel> clientSessions = userSession.getAuthenticatedClientSessions();
         Assert.assertEquals(2, clientSessions.size());
-        testAuthenticatedClientSession(clientSessions.get(client1.getId()), "test-app", userSession.getId(), "foo1", 100);
-        testAuthenticatedClientSession(clientSessions.get(client2.getId()), "third-party", userSession.getId(), "foo2", 200);
+        testAuthenticatedClientSession(clientSessions.get(client1.getId()), "test-app", userSession.getId(), "foo1", currentTime1);
+        testAuthenticatedClientSession(clientSessions.get(client2.getId()), "third-party", userSession.getId(), "foo2", currentTime2);
 
         // Update session1
         clientSessions.get(client1.getId()).setAction("foo1-updated");
@@ -619,20 +623,21 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
         // Ensure updated
         userSession = session.sessions().getUserSession(realm, userSession.getId());
         clientSessions = userSession.getAuthenticatedClientSessions();
-        testAuthenticatedClientSession(clientSessions.get(client1.getId()), "test-app", userSession.getId(), "foo1-updated", 100);
+        testAuthenticatedClientSession(clientSessions.get(client1.getId()), "test-app", userSession.getId(), "foo1-updated", currentTime1);
 
         // Rewrite session2
         clientSession2 = session.sessions().createClientSession(realm, client2, userSession);
         clientSession2.setAction("foo2-rewrited");
-        clientSession2.setTimestamp(300);
+        int currentTime3 = Time.currentTime();
+        clientSession2.setTimestamp(currentTime3);
 
 
         // Ensure updated
         userSession = session.sessions().getUserSession(realm, userSession.getId());
         clientSessions = userSession.getAuthenticatedClientSessions();
         Assert.assertEquals(2, clientSessions.size());
-        testAuthenticatedClientSession(clientSessions.get(client1.getId()), "test-app", userSession.getId(), "foo1-updated", 100);
-        testAuthenticatedClientSession(clientSessions.get(client2.getId()), "third-party", userSession.getId(), "foo2-rewrited", 300);
+        testAuthenticatedClientSession(clientSessions.get(client1.getId()), "test-app", userSession.getId(), "foo1-updated", currentTime1);
+        testAuthenticatedClientSession(clientSessions.get(client2.getId()), "third-party", userSession.getId(), "foo2-rewrited", currentTime3);
 
         // remove session
         clientSession1 = userSession.getAuthenticatedClientSessions().get(client1.getId());

@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -612,10 +611,7 @@ public class UserSessionPersisterProviderTest extends KeycloakModelTest {
             i++;
         }
 
-        Arrays.sort(clients);
-        Arrays.sort(actualClients);
-
-        assertArrayEquals(clients, actualClients);
+        assertThat(actualClients, Matchers.arrayContainingInAnyOrder(clients));
     }
 
     public static void assertSessions(List<UserSessionModel> actualSessions, String[] expectedSessionIds) {

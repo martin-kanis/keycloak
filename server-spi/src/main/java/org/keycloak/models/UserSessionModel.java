@@ -46,7 +46,7 @@ public interface UserSessionModel {
     }
 
     /**
-     * Represents the corresponding offline user session.
+     * Represents the corresponding online/offline user session.
      */
     String CORRESPONDING_SESSION_ID = "correspondingSessionId";
 

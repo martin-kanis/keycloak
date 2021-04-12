@@ -60,6 +60,8 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
         RealmModel realm = s.realms().createRealm("test");
         realm.setOfflineSessionIdleTimeout(Constants.DEFAULT_OFFLINE_SESSION_IDLE_TIMEOUT);
         realm.setDefaultRole(s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
+        realm.setSsoSessionIdleTimeout(1800);
+        realm.setSsoSessionMaxLifespan(36000);
         this.realmId = realm.getId();
 
         s.users().addUser(realm, "user1").setEmail("user1@localhost");

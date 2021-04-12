@@ -10,6 +10,7 @@ import org.keycloak.common.util.Time;
 import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.models.KeycloakSessionTask;
 import org.keycloak.models.UserLoginFailureProvider;
 import org.keycloak.models.UserLoginFailureProviderFactory;
 import org.keycloak.models.RealmModel;
@@ -19,19 +20,22 @@ import org.keycloak.models.sessions.infinispan.entities.LoginFailureKey;
 import org.keycloak.models.sessions.infinispan.entities.SessionEntity;
 import org.keycloak.models.sessions.infinispan.events.AbstractUserSessionClusterListener;
 import org.keycloak.models.sessions.infinispan.events.RemoveAllUserLoginFailuresEvent;
+import org.keycloak.models.sessions.infinispan.initializer.InfinispanCacheInitializer;
 import org.keycloak.models.sessions.infinispan.remotestore.RemoteCacheInvoker;
 import org.keycloak.models.sessions.infinispan.remotestore.RemoteCacheSessionListener;
+import org.keycloak.models.sessions.infinispan.remotestore.RemoteCacheSessionsLoader;
 import org.keycloak.models.sessions.infinispan.util.InfinispanUtil;
 import org.keycloak.models.sessions.infinispan.util.SessionTimeouts;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.PostMigrationEvent;
 
+import java.io.Serializable;
 import java.util.Set;
 import java.util.function.BiFunction;
 
 public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailureProviderFactory {
 
-    private static final Logger log = Logger.getLogger(InfinispanUserSessionProviderFactory.class);
+    private static final Logger log = Logger.getLogger(InfinispanUserLoginFailureProviderFactory.class);
 
     public static final String PROVIDER_ID = "infinispan";
 
@@ -65,6 +69,7 @@ public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailu
                 KeycloakModelUtils.runJobInTransaction(factory, (KeycloakSession session) -> {
                     checkRemoteCaches(session);
                     registerClusterListeners(session);
+                    loadSessionsFromRemoteCaches(session);
                 });
             }
         });
@@ -118,6 +123,44 @@ public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailu
             remoteCache.addClientListener(hotrodListener);
             return remoteCache;
         }
+    }
+
+    // Max count of worker errors. Initialization will end with exception when this number is reached
+    private int getMaxErrors() {
+        return config.getInt("maxErrors", 20);
+    }
+
+    // Count of sessions to be computed in each segment
+    private int getSessionsPerSegment() {
+        return config.getInt("sessionsPerSegment", 64);
+    }
+
+    private void loadSessionsFromRemoteCaches(KeycloakSession session) {
+        for (String cacheName : remoteCacheInvoker.getRemoteCacheNames()) {
+            loadSessionsFromRemoteCache(session.getKeycloakSessionFactory(), cacheName, getSessionsPerSegment(), getMaxErrors());
+        }
+    }
+
+    private void loadSessionsFromRemoteCache(final KeycloakSessionFactory sessionFactory, String cacheName, final int sessionsPerSegment, final int maxErrors) {
+        log.debugf("Check pre-loading sessions from remote cache '%s'", cacheName);
+
+        KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
+
+            @Override
+            public void run(KeycloakSession session) {
+                InfinispanConnectionProvider connections = session.getProvider(InfinispanConnectionProvider.class);
+                Cache<String, Serializable> workCache = connections.getCache(InfinispanConnectionProvider.WORK_CACHE_NAME);
+
+                InfinispanCacheInitializer initializer = new InfinispanCacheInitializer(sessionFactory, workCache,
+                        new RemoteCacheSessionsLoader(cacheName, sessionsPerSegment), "remoteCacheLoad::" + cacheName, sessionsPerSegment, maxErrors);
+
+                initializer.initCache();
+                initializer.loadSessions();
+            }
+
+        });
+
+        log.debugf("Pre-loading sessions from remote cache '%s' finished", cacheName);
     }
 
     @Override

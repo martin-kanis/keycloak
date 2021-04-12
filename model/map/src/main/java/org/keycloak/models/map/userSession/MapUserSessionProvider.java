@@ -321,7 +321,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
         LOG.tracef("getActiveClientSessionStats(%s, %s)%s", realm, offline, getShortStackTrace());
 
         return userSessionTx.getUpdatedNotRemoved(mcb)
-                .map(MapUserSessionEntity::getAuthenticatedClientSessions)
+                .map(userEntityToAdapterFunc(realm))
+                .map(UserSessionModel::getAuthenticatedClientSessions)
                 .map(Map::keySet)
                 .flatMap(Collection::stream)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
@@ -366,7 +367,6 @@ public class MapUserSessionProvider implements UserSessionProvider {
                 realm.getSsoSessionIdleTimeoutRememberMe() : realm.getSsoSessionIdleTimeout()) -
                 SessionTimeoutHelper.PERIODIC_CLEANER_IDLE_TIMEOUT_WINDOW_SECONDS;
         int expiredOffline = currentTime - realm.getOfflineSessionIdleTimeout() - SessionTimeoutHelper.PERIODIC_CLEANER_IDLE_TIMEOUT_WINDOW_SECONDS;
-        int clientExpired = Math.min(expired, expiredRememberMe);
 
         // remove expired user sessions and its client sessions
         ModelCriteriaBuilder<UserSessionModel> userSessionMcb = userSessionStore.createCriteriaBuilder()

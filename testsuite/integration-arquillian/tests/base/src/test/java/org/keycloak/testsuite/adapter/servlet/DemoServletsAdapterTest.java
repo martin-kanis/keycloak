@@ -113,7 +113,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -629,18 +628,15 @@ public class DemoServletsAdapterTest extends AbstractServletsAdapterTest {
         testRealmLoginPage.form().login("bburke@redhat.com", "password");
         assertCurrentUrlEquals(customerPortal);
 
-        RealmRepresentation demoRealmRep = testRealmResource().toRepresentation();
-        int originalMax = demoRealmRep.getSsoSessionMaxLifespan();
         try {
-            demoRealmRep.setSsoSessionMaxLifespan(1);
-            testRealmResource().update(demoRealmRep);
+            log.debug("set time offset to: " + 36000*2);
+            setAdapterAndServerTimeOffset(36000*2, customerPortal.toString());
 
-            TimeUnit.SECONDS.sleep(2);
             productPortal.navigateTo();
             assertCurrentUrlStartsWithLoginUrlOf(testRealmPage);
         } finally {
-            demoRealmRep.setSsoSessionMaxLifespan(originalMax);
-            testRealmResource().update(demoRealmRep);
+            log.debug("reset time offset");
+            setAdapterAndServerTimeOffset(0, customerPortal.toString().concat("/unsecured"));
         }
     }
 

@@ -22,6 +22,7 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.utils.SessionTimeoutHelper;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,6 +111,13 @@ public abstract class MapUserSessionAdapter extends AbstractUserSessionModel<Map
         Map<String, AuthenticatedClientSessionModel> result = new HashMap<>();
         List<String> removedClientUUIDS = new LinkedList<>();
 
+        int currentTime = Time.currentTime();
+        int expired = currentTime - realm.getSsoSessionMaxLifespan();
+        int expiredRememberMe = currentTime - (realm.getSsoSessionMaxLifespanRememberMe() > 0 ?
+                realm.getSsoSessionMaxLifespanRememberMe() : realm.getSsoSessionMaxLifespan());
+        int expiredOffline = currentTime - realm.getOfflineSessionIdleTimeout() - SessionTimeoutHelper.PERIODIC_CLEANER_IDLE_TIMEOUT_WINDOW_SECONDS;
+        int clientExpired = Math.min(expired, expiredRememberMe);
+
         entity.getAuthenticatedClientSessions().entrySet()
                 .stream()
                 .forEach(entry -> {
@@ -119,7 +127,7 @@ public abstract class MapUserSessionAdapter extends AbstractUserSessionModel<Map
                     if (client != null) {
                         AuthenticatedClientSessionModel clientSession = session.sessions()
                                 .getClientSession(this, client, entry.getValue(), isOffline());
-                        if (clientSession != null) {
+                        if (clientSession != null && !isExpired(clientSession, expiredOffline, clientExpired)) {
                             result.put(clientUUID, clientSession);
                         } else {
                             removedClientUUIDS.add(clientUUID);
@@ -216,6 +224,10 @@ public abstract class MapUserSessionAdapter extends AbstractUserSessionModel<Map
             entity.addNote(CORRESPONDING_SESSION_ID, correspondingSessionId);
 
         entity.clearAuthenticatedClientSessions();
+    }
+
+    private boolean isExpired(AuthenticatedClientSessionModel clientSession, int expiredOffline, int clientExpired) {
+        return isOffline() ? !(clientSession.getTimestamp() > expiredOffline) : !(clientSession.getTimestamp() > clientExpired);
     }
 
     @Override

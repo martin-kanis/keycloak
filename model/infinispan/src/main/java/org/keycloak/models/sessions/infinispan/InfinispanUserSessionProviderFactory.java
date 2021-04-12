@@ -78,8 +78,6 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
 
     public static final String REMOVE_USER_SESSIONS_EVENT = "REMOVE_USER_SESSIONS_EVENT";
 
-    public static final String REMOVE_ALL_LOGIN_FAILURES_EVENT = "REMOVE_ALL_LOGIN_FAILURES_EVENT";
-
     private Config.Scope config;
 
     private RemoteCacheInvoker remoteCacheInvoker;

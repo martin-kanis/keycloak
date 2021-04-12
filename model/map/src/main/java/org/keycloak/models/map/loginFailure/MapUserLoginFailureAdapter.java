@@ -76,4 +76,9 @@ public class MapUserLoginFailureAdapter extends AbstractUserLoginFailureModel<Ma
     public void setLastIPFailure(String ip) {
         entity.setLastIPFailure(ip);
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s@%08x", entity.getId(), hashCode());
+    }
 }

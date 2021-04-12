@@ -212,6 +212,8 @@ public class UserSessionProviderOfflineTest extends AbstractTestRealmKeycloakTes
             currentSession = sessionRR1;
             RealmModel fooRealm = currentSession.realms().createRealm("foo", "foo");
             fooRealm.setDefaultRole(currentSession.roles().addRealmRole(fooRealm, Constants.DEFAULT_ROLES_ROLE_PREFIX  + "-" + fooRealm.getName()));
+            fooRealm.setSsoSessionIdleTimeout(1800);
+            fooRealm.setSsoSessionMaxLifespan(36000);
             fooRealm.addClient("foo-app");
             currentSession.users().addUser(fooRealm, "user3");
 
@@ -276,6 +278,8 @@ public class UserSessionProviderOfflineTest extends AbstractTestRealmKeycloakTes
                     sessionManager = new UserSessionManager(currentSession);
                     RealmModel fooRealm = currentSession.realms().createRealm("foo", "foo");
                     fooRealm.setDefaultRole(currentSession.roles().addRealmRole(fooRealm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + fooRealm.getName()));
+                    fooRealm.setSsoSessionIdleTimeout(1800);
+                    fooRealm.setSsoSessionMaxLifespan(36000);
 
                     fooRealm.addClient("foo-app");
                     fooRealm.addClient("bar-app");
@@ -369,6 +373,8 @@ public class UserSessionProviderOfflineTest extends AbstractTestRealmKeycloakTes
                     currentSession = sessionUR1;
                     RealmModel fooRealm = currentSession.realms().createRealm("foo", "foo");
                     fooRealm.setDefaultRole(currentSession.roles().addRealmRole(fooRealm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + fooRealm.getName()));
+                    fooRealm.setSsoSessionIdleTimeout(1800);
+                    fooRealm.setSsoSessionMaxLifespan(36000);
                     fooRealm.addClient("foo-app");
                     currentSession.users().addUser(fooRealm, "user3");
 

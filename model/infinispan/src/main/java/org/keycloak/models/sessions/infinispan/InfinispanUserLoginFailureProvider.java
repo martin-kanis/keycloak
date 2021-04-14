@@ -40,6 +40,8 @@ import org.keycloak.models.sessions.infinispan.util.SessionTimeouts;
 
 import java.util.concurrent.Future;
 
+import static org.keycloak.common.util.StackUtil.getShortStackTrace;
+
 /**
  *
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
@@ -70,6 +72,8 @@ public class InfinispanUserLoginFailureProvider implements UserLoginFailureProvi
 
     @Override
     public UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId) {
+        log.tracef("getUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
+
         LoginFailureKey key = new LoginFailureKey(realm.getId(), userId);
         LoginFailureEntity entity = getLoginFailureEntity(key);
         return wrap(key, entity);
@@ -77,6 +81,8 @@ public class InfinispanUserLoginFailureProvider implements UserLoginFailureProvi
 
     @Override
     public UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
+        log.tracef("addUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
+
         LoginFailureKey key = new LoginFailureKey(realm.getId(), userId);
         LoginFailureEntity entity = new LoginFailureEntity();
         entity.setRealmId(realm.getId());
@@ -90,23 +96,24 @@ public class InfinispanUserLoginFailureProvider implements UserLoginFailureProvi
 
     @Override
     public void removeUserLoginFailure(RealmModel realm, String userId) {
+        log.tracef("removeUserLoginFailure(%s, %s)%s", realm, userId, getShortStackTrace());
+
         SessionUpdateTask<LoginFailureEntity> removeTask = Tasks.removeSync();
         loginFailuresTx.addTask(new LoginFailureKey(realm.getId(), userId), removeTask);
     }
 
     @Override
     public void removeAllUserLoginFailures(RealmModel realm) {
+        log.tracef("removeAllUserLoginFailures(%s)%s", realm, getShortStackTrace());
+
         clusterEventsSenderTx.addEvent(
                 RemoveAllUserLoginFailuresEvent.createEvent(RemoveAllUserLoginFailuresEvent.class, InfinispanUserLoginFailureProviderFactory.REMOVE_ALL_LOGIN_FAILURES_EVENT, session, realm.getId(), true),
                 ClusterProvider.DCNotify.LOCAL_DC_ONLY);
     }
 
-    @Override
-    public void removeAllUserLoginFailures(String realmId) {
-        removeAllLocalUserLoginFailuresEvent(realmId);
-    }
+    protected void removeAllLocalUserLoginFailuresEvent(String realmId) {
+        log.tracef("removeAllLocalUserLoginFailuresEvent(%s)%s", realmId, getShortStackTrace());
 
-    private void removeAllLocalUserLoginFailuresEvent(String realmId) {
         FuturesHelper futures = new FuturesHelper();
 
         Cache<LoginFailureKey, SessionEntityWrapper<LoginFailureEntity>> localCache = CacheDecorators.localCache(loginFailureCache);

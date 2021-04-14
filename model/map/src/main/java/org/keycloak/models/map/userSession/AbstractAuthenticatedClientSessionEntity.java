@@ -187,4 +187,9 @@ public abstract class AbstractAuthenticatedClientSessionEntity<K> implements Abs
         this.updated |= this.offline != offline;
         this.offline = offline;
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s@%08x", getId(), hashCode());
+    }
 }

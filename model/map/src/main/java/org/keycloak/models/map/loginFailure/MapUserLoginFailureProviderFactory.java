@@ -18,9 +18,11 @@ package org.keycloak.models.map.loginFailure;
 
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserLoginFailureProvider;
 import org.keycloak.models.UserLoginFailureProviderFactory;
 import org.keycloak.models.UserLoginFailureModel;
+import org.keycloak.models.UserModel;
 import org.keycloak.models.map.common.AbstractMapProviderFactory;
 import org.keycloak.models.map.storage.MapStorage;
 import org.keycloak.models.map.storage.MapStorageProvider;
@@ -39,10 +41,28 @@ public class MapUserLoginFailureProviderFactory extends AbstractMapProviderFacto
     public void postInit(KeycloakSessionFactory factory) {
         MapStorageProvider sp = (MapStorageProvider) factory.getProviderFactory(MapStorageProvider.class);
         userLoginFailureStore = sp.getStorage("userLoginFailures", UUID.class, MapUserLoginFailureEntity.class, UserLoginFailureModel.class);
+
+        factory.register(event -> {
+            if (event instanceof UserModel.UserRemovedEvent) {
+                UserModel.UserRemovedEvent userRemovedEvent = (UserModel.UserRemovedEvent) event;
+
+                MapUserLoginFailureProvider provider = MapUserLoginFailureProviderFactory.this.create(userRemovedEvent.getKeycloakSession());
+                provider.removeUserLoginFailure(userRemovedEvent.getRealm(), userRemovedEvent.getUser().getId());
+            }
+        });
+
+        factory.register(event -> {
+            if (event instanceof RealmModel.RealmRemovedEvent) {
+                RealmModel.RealmRemovedEvent realmRemovedEvent = (RealmModel.RealmRemovedEvent) event;
+
+                MapUserLoginFailureProvider provider = MapUserLoginFailureProviderFactory.this.create(realmRemovedEvent.getKeycloakSession());
+                provider.removeAllUserLoginFailures(realmRemovedEvent.getRealm());
+            }
+        });
     }
 
     @Override
-    public UserLoginFailureProvider create(KeycloakSession session) {
+    public MapUserLoginFailureProvider create(KeycloakSession session) {
         return new MapUserLoginFailureProvider(session, userLoginFailureStore);
     }
 }

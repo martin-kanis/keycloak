@@ -19,7 +19,6 @@ package org.keycloak.testsuite.model.parameters;
 import org.keycloak.cluster.infinispan.InfinispanClusterProviderFactory;
 import org.keycloak.connections.infinispan.InfinispanConnectionProviderFactory;
 import org.keycloak.connections.infinispan.InfinispanConnectionSpi;
-import org.keycloak.models.UserLoginFailureSpi;
 import org.keycloak.models.session.UserSessionPersisterSpi;
 import org.keycloak.models.sessions.infinispan.InfinispanUserLoginFailureProviderFactory;
 import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProviderFactory;
@@ -35,7 +34,6 @@ import org.keycloak.provider.Spi;
 import org.keycloak.testsuite.model.Config;
 import com.google.common.collect.ImmutableSet;
 import org.keycloak.timer.TimerProviderFactory;
-import org.keycloak.timer.TimerSpi;
 
 import java.util.Set;
 
@@ -50,9 +48,7 @@ public class Infinispan extends KeycloakModelParameters {
       .add(CacheUserProviderSpi.class)
       .add(InfinispanConnectionSpi.class)
       .add(StickySessionEncoderSpi.class)
-      .add(TimerSpi.class)
       .add(UserSessionPersisterSpi.class)
-      .add(UserLoginFailureSpi.class)
 
       .build();
 

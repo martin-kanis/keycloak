@@ -537,7 +537,6 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
     protected void onRealmRemovedEvent(String realmId) {
         removeLocalUserSessions(realmId, true);
         removeLocalUserSessions(realmId, false);
-        session.loginFailures().removeAllUserLoginFailures(realmId);
     }
 
     @Override
@@ -559,8 +558,6 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
     protected void onUserRemoved(RealmModel realm, UserModel user) {
         removeUserSessions(realm, user, true);
         removeUserSessions(realm, user, false);
-
-        session.loginFailures().removeUserLoginFailure(realm, user.getId());
 
         UserSessionPersisterProvider persisterProvider = session.getProvider(UserSessionPersisterProvider.class);
         if (persisterProvider != null) {

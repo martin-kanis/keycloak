@@ -70,6 +70,7 @@ import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.keycloak.timer.TimerSpi;
 
 /**
  * Base of testcases that operate on session level. The tests derived from this class
@@ -175,6 +176,7 @@ public abstract class KeycloakModelTest {
       .add(RealmSpi.class)
       .add(RoleSpi.class)
       .add(StoreFactorySpi.class)
+      .add(TimerSpi.class)
       .add(UserLoginFailureSpi.class)
       .add(UserSessionSpi.class)
       .add(UserSpi.class)

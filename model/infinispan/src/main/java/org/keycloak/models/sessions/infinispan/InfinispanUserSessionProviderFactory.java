@@ -199,7 +199,9 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
 
             @Override
             protected void eventReceived(KeycloakSession session, UserSessionProvider provider, RealmRemovedSessionEvent sessionEvent) {
-                ((InfinispanUserSessionProvider) provider).onRealmRemovedEvent(sessionEvent.getRealmId());
+                if (provider instanceof InfinispanUserSessionProvider) {
+                    ((InfinispanUserSessionProvider) provider).onRealmRemovedEvent(sessionEvent.getRealmId());
+                }
             }
 
         });
@@ -209,7 +211,9 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
 
             @Override
             protected void eventReceived(KeycloakSession session, UserSessionProvider provider, ClientRemovedSessionEvent sessionEvent) {
-                ((InfinispanUserSessionProvider) provider).onClientRemovedEvent(sessionEvent.getRealmId(), sessionEvent.getClientUuid());
+                if (provider instanceof InfinispanUserSessionProvider) {
+                    ((InfinispanUserSessionProvider) provider).onClientRemovedEvent(sessionEvent.getRealmId(), sessionEvent.getClientUuid());
+                }
             }
 
         });
@@ -219,7 +223,9 @@ public class InfinispanUserSessionProviderFactory implements UserSessionProvider
 
             @Override
             protected void eventReceived(KeycloakSession session, UserSessionProvider provider, RemoveUserSessionsEvent sessionEvent) {
-                ((InfinispanUserSessionProvider) provider).onRemoveUserSessionsEvent(sessionEvent.getRealmId());
+                if (provider instanceof InfinispanUserSessionProvider) {
+                    ((InfinispanUserSessionProvider) provider).onRemoveUserSessionsEvent(sessionEvent.getRealmId());
+                }
             }
 
         });

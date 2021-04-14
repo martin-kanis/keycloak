@@ -52,9 +52,4 @@ public interface UserLoginFailureProvider extends Provider {
      */
     void removeAllUserLoginFailures(RealmModel realm);
 
-    /**
-     * Removes all the {@link UserLoginFailureModel} for the given realm Id.
-     * @param realmId {@link String}
-     */
-    void removeAllUserLoginFailures(String realmId);
 }

@@ -269,4 +269,9 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
         this.updated |= !Objects.equals(this.persistenceState, persistenceState);
         this.persistenceState = persistenceState;
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s@%08x", getId(), hashCode());
+    }
 }

@@ -115,16 +115,6 @@ public class MapUserLoginFailureProvider implements UserLoginFailureProvider {
     }
 
     @Override
-    public void removeAllUserLoginFailures(String realmId) {
-        ModelCriteriaBuilder<UserLoginFailureModel> mcb = userLoginFailureStore.createCriteriaBuilder()
-                .compare(UserLoginFailureModel.SearchableFields.REALM_ID, ModelCriteriaBuilder.Operator.EQ, realmId);
-
-        LOG.tracef("removeAllUserLoginFailures(%s)%s", realmId, getShortStackTrace());
-
-        userLoginFailureTx.delete(UUID.randomUUID(), mcb);
-    }
-
-    @Override
     public void close() {
 
     }

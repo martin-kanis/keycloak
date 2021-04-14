@@ -29,10 +29,17 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.UserSessionProvider;
-import org.keycloak.models.map.userSession.MapUserSessionProviderFactory;
 import org.keycloak.models.session.UserSessionPersisterProvider;
+import org.keycloak.models.sessions.infinispan.changes.sessions.PersisterLastSessionRefreshStoreFactory;
+import org.keycloak.models.utils.ResetTimeOffsetEvent;
+import org.keycloak.testsuite.model.infinispan.InfinispanTestUtil;
+import org.keycloak.timer.TimerProvider;
 
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.keycloak.testsuite.model.UserSessionPersisterProviderTest.createClients;
 import static org.keycloak.testsuite.model.UserSessionPersisterProviderTest.createSessions;
@@ -41,19 +48,23 @@ import static org.keycloak.testsuite.model.UserSessionPersisterProviderTest.crea
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
  */
 @RequireProvider(UserSessionPersisterProvider.class)
-@RequireProvider(value = UserSessionProvider.class, only = MapUserSessionProviderFactory.PROVIDER_ID)
+@RequireProvider(UserSessionProvider.class)
 @RequireProvider(UserProvider.class)
 @RequireProvider(RealmProvider.class)
 public class UserSessionProviderModelTest extends KeycloakModelTest {
 
     private String realmId;
+    private KeycloakSession kcSession;
 
     @Override
     public void createEnvironment(KeycloakSession s) {
         RealmModel realm = s.realms().createRealm("test");
         realm.setOfflineSessionIdleTimeout(Constants.DEFAULT_OFFLINE_SESSION_IDLE_TIMEOUT);
         realm.setDefaultRole(s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
+        realm.setSsoSessionIdleTimeout(18000);
+        realm.setSsoSessionMaxLifespan(360000);
         this.realmId = realm.getId();
+        this.kcSession = s;
 
         s.users().addUser(realm, "user1").setEmail("user1@localhost");
         s.users().addUser(realm, "user2").setEmail("user2@localhost");
@@ -114,49 +125,76 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
 
     @Test
     public void testExpiredClientSessions() {
-        UserSessionModel[] origSessions = inComittedTransaction(session -> {
-            // create some user and client sessions
-            return createSessions(session, realmId);
-        });
+        // Suspend periodic tasks to avoid race-conditions, which may cause missing updates of lastSessionRefresh times to UserSessionPersisterProvider
+        TimerProvider timer = kcSession.getProvider(TimerProvider.class);
+        TimerProvider.TimerTaskContext timerTaskCtx = null;
+        if (timer != null) {
+            timerTaskCtx = timer.cancelTask(PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
+            log.info("Cancelled periodic task " + PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
 
-        inComittedTransaction(session -> {
-            RealmModel realm = session.realms().getRealm(realmId);
+            InfinispanTestUtil.setTestingTimeService(kcSession);
+        }
 
-            UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
-            Assert.assertEquals(origSessions[0], userSession);
+        AtomicReference<List<String>> clientSessionIds = new AtomicReference<>();
 
-            AuthenticatedClientSessionModel clientSession = session.sessions().getClientSession(userSession, realm.getClientByClientId("test-app"),
-                    UUID.fromString(origSessions[0].getAuthenticatedClientSessionByClient(realm.getClientByClientId("test-app").getId()).getId()),
-                    false);
-            Assert.assertEquals(origSessions[0].getAuthenticatedClientSessionByClient(realm.getClientByClientId("test-app").getId()).getId(), clientSession.getId());
+        try {
+            UserSessionModel[] origSessions = inComittedTransaction(session -> {
+                // create some user and client sessions
+                return createSessions(session, realmId);
+            });
 
-            userSession = session.sessions().getUserSession(realm, origSessions[1].getId());
-            Assert.assertEquals(origSessions[1], userSession);
-        });
+            inComittedTransaction(session -> {
+                RealmModel realm = session.realms().getRealm(realmId);
 
-        inComittedTransaction(session -> {
-            RealmModel realm = session.realms().getRealm(realmId);
+                UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
+                Assert.assertEquals(origSessions[0], userSession);
 
-            // expand lifetime of user sessions
-            origSessions[0].setLastSessionRefresh(origSessions[0].getLastSessionRefresh() + 3456000);
+                AuthenticatedClientSessionModel clientSession = session.sessions().getClientSession(userSession, realm.getClientByClientId("test-app"),
+                        UUID.fromString(origSessions[0].getAuthenticatedClientSessionByClient(realm.getClientByClientId("test-app").getId()).getId()),
+                        false);
+                Assert.assertEquals(origSessions[0].getAuthenticatedClientSessionByClient(realm.getClientByClientId("test-app").getId()).getId(), clientSession.getId());
 
-            // set time offset by 40 days
-            Time.setOffset(3456000);
-            log.infof("Set time offset to 3456000. Time is: %d", Time.currentTime());
+                userSession = session.sessions().getUserSession(realm, origSessions[1].getId());
+                Assert.assertEquals(origSessions[1], userSession);
+            });
 
-            // remove expired sessions explicitly for MapUserSessionProvider
-            session.sessions().removeExpired(realm);
-        });
+            inComittedTransaction(session -> {
+                RealmModel realm = session.realms().getRealm(realmId);
 
-        inComittedTransaction(session -> {
-            RealmModel realm = session.realms().getRealm(realmId);
+                UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
 
-            // assert the user session is still there
-            UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
-            Assert.assertEquals(origSessions[0], userSession);
+                Collection<AuthenticatedClientSessionModel> values = userSession.getAuthenticatedClientSessions().values();
+                List<String> clientSessions = new LinkedList<>();
+                values.stream().forEach(clientSession -> {
+                    // expire client sessions
+                    clientSession.setTimestamp(1);
+                    clientSessions.add(clientSession.getId());
+                });
+                clientSessionIds.set(clientSessions);
+            });
 
-            // assert the client sessions are expired
-            Assert.assertEquals(0, session.sessions().getActiveClientSessionStats(realm, false).size());
-        });
+            inComittedTransaction(session -> {
+                RealmModel realm = session.realms().getRealm(realmId);
+
+                // assert the user session is still there
+                UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
+                Assert.assertEquals(origSessions[0], userSession);
+
+                // this needs to be called to force expiration of client sessions from the map store
+                session.sessions().getActiveClientSessionStats(realm, false);
+
+                // assert the client sessions are expired
+                clientSessionIds.get().forEach(clientSessionId ->
+                        Assert.assertNull(session.sessions().getClientSession(userSession, realm.getClientByClientId("test-app"), UUID.fromString(clientSessionId), false)));
+            });
+        } finally {
+            Time.setOffset(0);
+            kcSession.getKeycloakSessionFactory().publish(new ResetTimeOffsetEvent());
+            if (timer != null) {
+                timer.schedule(timerTaskCtx.getRunnable(), timerTaskCtx.getIntervalMillis(), PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
+
+                InfinispanTestUtil.revertTimeService(kcSession);
+            }
+        }
     }
 }

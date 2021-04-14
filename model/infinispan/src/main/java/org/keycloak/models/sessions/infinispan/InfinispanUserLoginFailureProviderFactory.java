@@ -14,11 +14,13 @@ import org.keycloak.models.KeycloakSessionTask;
 import org.keycloak.models.UserLoginFailureProvider;
 import org.keycloak.models.UserLoginFailureProviderFactory;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
 import org.keycloak.models.sessions.infinispan.changes.SessionEntityWrapper;
 import org.keycloak.models.sessions.infinispan.entities.LoginFailureEntity;
 import org.keycloak.models.sessions.infinispan.entities.LoginFailureKey;
 import org.keycloak.models.sessions.infinispan.entities.SessionEntity;
 import org.keycloak.models.sessions.infinispan.events.AbstractUserSessionClusterListener;
+import org.keycloak.models.sessions.infinispan.events.RealmRemovedSessionEvent;
 import org.keycloak.models.sessions.infinispan.events.RemoveAllUserLoginFailuresEvent;
 import org.keycloak.models.sessions.infinispan.initializer.InfinispanCacheInitializer;
 import org.keycloak.models.sessions.infinispan.remotestore.RemoteCacheInvoker;
@@ -38,6 +40,8 @@ public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailu
     private static final Logger log = Logger.getLogger(InfinispanUserLoginFailureProviderFactory.class);
 
     public static final String PROVIDER_ID = "infinispan";
+
+    public static final String REALM_REMOVED_SESSION_EVENT = "REALM_REMOVED_EVENT_SESSIONS";
 
     public static final String REMOVE_ALL_LOGIN_FAILURES_EVENT = "REMOVE_ALL_LOGIN_FAILURES_EVENT";
 
@@ -60,17 +64,20 @@ public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailu
 
     @Override
     public void postInit(final KeycloakSessionFactory factory) {
-        KeycloakModelUtils.runJobInTransaction(factory, (KeycloakSession session) -> {
-            this.remoteCacheInvoker = new RemoteCacheInvoker();
-        });
+        this.remoteCacheInvoker = new RemoteCacheInvoker();
 
         factory.register(event -> {
             if (event instanceof PostMigrationEvent) {
                 KeycloakModelUtils.runJobInTransaction(factory, (KeycloakSession session) -> {
                     checkRemoteCaches(session);
                     registerClusterListeners(session);
-                    loadSessionsFromRemoteCaches(session);
+                    loadLoginFailuresFromRemoteCaches(session);
                 });
+            } else if (event instanceof UserModel.UserRemovedEvent) {
+                UserModel.UserRemovedEvent userRemovedEvent = (UserModel.UserRemovedEvent) event;
+
+                UserLoginFailureProvider provider = userRemovedEvent.getKeycloakSession().getProvider(UserLoginFailureProvider.class, getId());
+                provider.removeUserLoginFailure(userRemovedEvent.getRealm(), userRemovedEvent.getUser().getId());
             }
         });
     }
@@ -79,12 +86,25 @@ public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailu
         KeycloakSessionFactory sessionFactory = session.getKeycloakSessionFactory();
         ClusterProvider cluster = session.getProvider(ClusterProvider.class);
 
+        cluster.registerListener(REALM_REMOVED_SESSION_EVENT,
+                new AbstractUserSessionClusterListener<RealmRemovedSessionEvent, UserLoginFailureProvider>(sessionFactory, UserLoginFailureProvider.class) {
+
+                    @Override
+                    protected void eventReceived(KeycloakSession session, UserLoginFailureProvider provider, RealmRemovedSessionEvent sessionEvent) {
+                        if (provider instanceof InfinispanUserLoginFailureProvider) {
+                            ((InfinispanUserLoginFailureProvider) provider).removeAllLocalUserLoginFailuresEvent(sessionEvent.getRealmId());
+                        }
+                    }
+        });
+
         cluster.registerListener(REMOVE_ALL_LOGIN_FAILURES_EVENT,
                 new AbstractUserSessionClusterListener<RemoveAllUserLoginFailuresEvent, UserLoginFailureProvider>(sessionFactory, UserLoginFailureProvider.class) {
 
             @Override
             protected void eventReceived(KeycloakSession session, UserLoginFailureProvider provider, RemoveAllUserLoginFailuresEvent sessionEvent) {
-                provider.removeAllUserLoginFailures(sessionEvent.getRealmId());
+                if (provider instanceof InfinispanUserLoginFailureProvider) {
+                    ((InfinispanUserLoginFailureProvider) provider).removeAllLocalUserLoginFailuresEvent(sessionEvent.getRealmId());
+                }
             }
 
         });
@@ -135,13 +155,13 @@ public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailu
         return config.getInt("sessionsPerSegment", 64);
     }
 
-    private void loadSessionsFromRemoteCaches(KeycloakSession session) {
+    private void loadLoginFailuresFromRemoteCaches(KeycloakSession session) {
         for (String cacheName : remoteCacheInvoker.getRemoteCacheNames()) {
-            loadSessionsFromRemoteCache(session.getKeycloakSessionFactory(), cacheName, getSessionsPerSegment(), getMaxErrors());
+            loadLoginFailuresFromRemoteCaches(session.getKeycloakSessionFactory(), cacheName, getSessionsPerSegment(), getMaxErrors());
         }
     }
 
-    private void loadSessionsFromRemoteCache(final KeycloakSessionFactory sessionFactory, String cacheName, final int sessionsPerSegment, final int maxErrors) {
+    private void loadLoginFailuresFromRemoteCaches(final KeycloakSessionFactory sessionFactory, String cacheName, final int sessionsPerSegment, final int maxErrors) {
         log.debugf("Check pre-loading sessions from remote cache '%s'", cacheName);
 
         KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
@@ -160,7 +180,7 @@ public class InfinispanUserLoginFailureProviderFactory implements UserLoginFailu
 
         });
 
-        log.debugf("Pre-loading sessions from remote cache '%s' finished", cacheName);
+        log.debugf("Pre-loading login failures from remote cache '%s' finished", cacheName);
     }
 
     @Override

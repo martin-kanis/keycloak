@@ -48,8 +48,8 @@ public class MapUserSessionProviderFactory extends AbstractMapProviderFactory<Us
             if (event instanceof UserModel.UserRemovedEvent) {
                 UserModel.UserRemovedEvent userRemovedEvent = (UserModel.UserRemovedEvent) event;
 
-                MapUserSessionProvider provider = (MapUserSessionProvider) userRemovedEvent.getKeycloakSession().getProvider(UserSessionProvider.class, getId());
-                provider.onUserRemoved(userRemovedEvent.getRealm(), userRemovedEvent.getUser());
+                MapUserSessionProvider provider = MapUserSessionProviderFactory.this.create(userRemovedEvent.getKeycloakSession());
+                provider.removeUserSessions(userRemovedEvent.getRealm(), userRemovedEvent.getUser());
             }
         });
     }
@@ -60,7 +60,7 @@ public class MapUserSessionProviderFactory extends AbstractMapProviderFactory<Us
     }
 
     @Override
-    public UserSessionProvider create(KeycloakSession session) {
+    public MapUserSessionProvider create(KeycloakSession session) {
         return new MapUserSessionProvider(session, userSessionStore, clientSessionStore);
     }
 }

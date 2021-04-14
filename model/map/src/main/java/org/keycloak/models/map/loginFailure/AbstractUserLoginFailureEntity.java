@@ -121,4 +121,9 @@ public abstract class AbstractUserLoginFailureEntity<K> implements AbstractEntit
         this.lastFailure = 0l;
         this.lastIPFailure = null;
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s@%08x", getId(), hashCode());
+    }
 }

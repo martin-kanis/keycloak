@@ -88,7 +88,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
             @Override
             public void removeAuthenticatedClientSessions(Collection<String> removedClientUUIDS) {
                 removedClientUUIDS.forEach(clientId -> {
-                    clientSessionTx.delete(UUID.fromString(clientId));
+                    clientSessionTx.delete(origEntity.getAuthenticatedClientSessions().get(clientId));
                     entity.removeAuthenticatedClientSession(clientId);
                 });
             }
@@ -353,11 +353,15 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
     @Override
     public void removeAllExpired() {
+        LOG.tracef("removeAllExpired()%s", getShortStackTrace());
+
         session.realms().getRealmsStream().forEach(this::removeExpired);
     }
 
     @Override
     public void removeExpired(RealmModel realm) {
+        LOG.tracef("removeExpired(%s)%s", realm, getShortStackTrace());
+
         int currentTime = Time.currentTime();
         int expired = currentTime - realm.getSsoSessionMaxLifespan();
         int expiredRefresh = currentTime - realm.getSsoSessionIdleTimeout() - SessionTimeoutHelper.PERIODIC_CLEANER_IDLE_TIMEOUT_WINDOW_SECONDS;
@@ -388,19 +392,14 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
     @Override
     public void onRealmRemoved(RealmModel realm) {
+        LOG.tracef("onRealmRemoved(%s)%s", realm, getShortStackTrace());
+
         removeUserSessions(realm);
-        session.loginFailures().removeAllUserLoginFailures(realm);
     }
 
     @Override
     public void onClientRemoved(RealmModel realm, ClientModel client) {
 
-    }
-
-    protected void onUserRemoved(RealmModel realm, UserModel user) {
-        removeUserSessions(realm, user);
-
-        session.loginFailures().removeUserLoginFailure(realm, user.getId());
     }
 
     @Override

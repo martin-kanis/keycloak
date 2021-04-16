@@ -214,6 +214,8 @@ public class UserSessionProviderOfflineTest extends AbstractTestRealmKeycloakTes
             fooRealm.setDefaultRole(currentSession.roles().addRealmRole(fooRealm, Constants.DEFAULT_ROLES_ROLE_PREFIX  + "-" + fooRealm.getName()));
             fooRealm.setSsoSessionIdleTimeout(1800);
             fooRealm.setSsoSessionMaxLifespan(36000);
+            fooRealm.setOfflineSessionIdleTimeout(2592000);
+            fooRealm.setOfflineSessionMaxLifespan(5184000);
             fooRealm.addClient("foo-app");
             currentSession.users().addUser(fooRealm, "user3");
 
@@ -280,6 +282,8 @@ public class UserSessionProviderOfflineTest extends AbstractTestRealmKeycloakTes
                     fooRealm.setDefaultRole(currentSession.roles().addRealmRole(fooRealm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + fooRealm.getName()));
                     fooRealm.setSsoSessionIdleTimeout(1800);
                     fooRealm.setSsoSessionMaxLifespan(36000);
+                    fooRealm.setOfflineSessionIdleTimeout(2592000);
+                    fooRealm.setOfflineSessionMaxLifespan(5184000);
 
                     fooRealm.addClient("foo-app");
                     fooRealm.addClient("bar-app");
@@ -375,6 +379,8 @@ public class UserSessionProviderOfflineTest extends AbstractTestRealmKeycloakTes
                     fooRealm.setDefaultRole(currentSession.roles().addRealmRole(fooRealm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + fooRealm.getName()));
                     fooRealm.setSsoSessionIdleTimeout(1800);
                     fooRealm.setSsoSessionMaxLifespan(36000);
+                    fooRealm.setOfflineSessionIdleTimeout(2592000);
+                    fooRealm.setOfflineSessionMaxLifespan(5184000);
                     fooRealm.addClient("foo-app");
                     currentSession.users().addUser(fooRealm, "user3");
 

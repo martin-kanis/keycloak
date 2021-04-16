@@ -41,6 +41,7 @@ public abstract class AbstractAuthenticatedClientSessionEntity<K> implements Abs
     private String authMethod;
     private String redirectUri;
     private volatile int timestamp;
+    private long expiration;
     private String action;
 
     private Map<String, String> notes = new ConcurrentHashMap<>();
@@ -131,6 +132,15 @@ public abstract class AbstractAuthenticatedClientSessionEntity<K> implements Abs
     public void setTimestamp(int timestamp) {
         this.updated |= this.timestamp != timestamp;
         this.timestamp = timestamp;
+    }
+
+    public long getExpiration() {
+        return expiration;
+    }
+
+    public void setExpiration(long expiration) {
+        this.updated |= this.expiration != expiration;
+        this.expiration = expiration;
     }
 
     public String getAction() {

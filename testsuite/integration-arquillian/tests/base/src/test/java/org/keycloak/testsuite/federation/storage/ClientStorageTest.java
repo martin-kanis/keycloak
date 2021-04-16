@@ -455,7 +455,7 @@ public class ClientStorageTest extends AbstractTestRealmKeycloakTest {
     private String testRefreshWithOfflineToken(AccessToken oldToken, RefreshToken offlineToken, String offlineTokenString,
                                                final String sessionId, String userId) {
         // Change offset to big value to ensure userSession expired
-        setTimeOffset(99999);
+        setTimeOffset(30000);
         Assert.assertFalse(oldToken.isActive());
         Assert.assertTrue(offlineToken.isActive());
 

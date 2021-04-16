@@ -61,8 +61,8 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         RealmModel realm = s.realms().createRealm("test");
         realm.setOfflineSessionIdleTimeout(Constants.DEFAULT_OFFLINE_SESSION_IDLE_TIMEOUT);
         realm.setDefaultRole(s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
-        realm.setSsoSessionIdleTimeout(18000);
-        realm.setSsoSessionMaxLifespan(360000);
+        realm.setSsoSessionIdleTimeout(1800);
+        realm.setSsoSessionMaxLifespan(36000);
         this.realmId = realm.getId();
         this.kcSession = s;
 
@@ -180,9 +180,6 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
                 UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
                 Assert.assertEquals(origSessions[0], userSession);
 
-                // this needs to be called to force expiration of client sessions from the map store
-                session.sessions().getActiveClientSessionStats(realm, false);
-
                 // assert the client sessions are expired
                 clientSessionIds.get().forEach(clientSessionId ->
                         Assert.assertNull(session.sessions().getClientSession(userSession, realm.getClientByClientId("test-app"), UUID.fromString(clientSessionId), false)));
@@ -190,7 +187,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         } finally {
             Time.setOffset(0);
             kcSession.getKeycloakSessionFactory().publish(new ResetTimeOffsetEvent());
-            if (timer != null) {
+            if (timer != null && timerTaskCtx != null) {
                 timer.schedule(timerTaskCtx.getRunnable(), timerTaskCtx.getIntervalMillis(), PersisterLastSessionRefreshStoreFactory.DB_LSR_PERIODIC_TASK_NAME);
 
                 InfinispanTestUtil.revertTimeService(kcSession);

@@ -353,7 +353,7 @@ public class TokenIntrospectionTest extends AbstractTestRealmKeycloakTest {
         String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
         AccessTokenResponse accessTokenResponse = oauth.doAccessTokenRequest(code, "password");
 
-        setTimeOffset(86400);
+        setTimeOffset(30000);
 
         // "Online" session still exists, but is invalid
         accessTokenResponse = oauth.doRefreshTokenRequest(accessTokenResponse.getRefreshToken(), "password");

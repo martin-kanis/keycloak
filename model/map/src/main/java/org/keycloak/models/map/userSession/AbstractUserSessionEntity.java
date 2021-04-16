@@ -56,6 +56,8 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
 
     private int lastSessionRefresh;
 
+    private long expiration;
+
     private Map<String, String> notes = new ConcurrentHashMap<>();
 
     private UserSessionModel.State state;
@@ -194,6 +196,15 @@ public abstract class AbstractUserSessionEntity<K> implements AbstractEntity<K> 
     public void setLastSessionRefresh(int lastSessionRefresh) {
         this.updated |= this.lastSessionRefresh != lastSessionRefresh;
         this.lastSessionRefresh = lastSessionRefresh;
+    }
+
+    public long getExpiration() {
+        return expiration;
+    }
+
+    public void setExpiration(long expiration) {
+        this.updated |= this.expiration != expiration;
+        this.expiration = expiration;
     }
 
     public Map<String, String> getNotes() {

@@ -32,7 +32,9 @@ import org.keycloak.models.map.storage.MapKeycloakTransaction;
 import org.keycloak.models.map.storage.MapStorage;
 import org.keycloak.models.map.storage.ModelCriteriaBuilder;
 import org.keycloak.models.utils.SessionTimeoutHelper;
+import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -68,6 +70,8 @@ public class MapUserSessionProvider implements UserSessionProvider {
      */
     private final Map<UUID, MapUserSessionEntity> transientUserSessions = new HashMap<>();
 
+    public static final int MINIMAL_EXPIRATION_SEC = 300;
+
     public MapUserSessionProvider(KeycloakSession session, MapStorage<UUID, MapUserSessionEntity, UserSessionModel> userSessionStore,
                                   MapStorage<UUID, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel> clientSessionStore) {
         this.session = session;
@@ -82,15 +86,29 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
     private Function<MapUserSessionEntity, UserSessionModel> userEntityToAdapterFunc(RealmModel realm) {
         // Clone entity before returning back, to avoid giving away a reference to the live object to the caller
-        return (origEntity) -> new MapUserSessionAdapter(session, realm,
-                Objects.equals(origEntity.getPersistenceState(), TRANSIENT) ? origEntity : registerEntityForChanges(origEntity)) {
+        return (origEntity) -> {
+            if (origEntity.getExpiration() <= Time.currentTime()) {
+                userSessionTx.delete(origEntity.getId());
+                return null;
+            } else {
+                return new MapUserSessionAdapter(session, realm,
+                        Objects.equals(origEntity.getPersistenceState(), TRANSIENT) ? origEntity : registerEntityForChanges(origEntity)) {
 
-            @Override
-            public void removeAuthenticatedClientSessions(Collection<String> removedClientUUIDS) {
-                removedClientUUIDS.forEach(clientId -> {
-                    clientSessionTx.delete(origEntity.getAuthenticatedClientSessions().get(clientId));
-                    entity.removeAuthenticatedClientSession(clientId);
-                });
+                    @Override
+                    public void removeAuthenticatedClientSessions(Collection<String> removedClientUUIDS) {
+                        removedClientUUIDS.forEach(clientId -> {
+                            //clientSessionTx.delete(origEntity.getAuthenticatedClientSessions().get(clientId));
+                            entity.removeAuthenticatedClientSession(clientId);
+                        });
+                    }
+
+                    @Override
+                    public void setLastSessionRefresh(int lastSessionRefresh) {
+                        entity.setLastSessionRefresh(lastSessionRefresh);
+                        // whenever the lastSessionRefresh is changed recompute the expiration time
+                        setUserSessionExpiration(entity, realm);
+                    }
+                };
             }
         };
     }
@@ -99,12 +117,27 @@ public class MapUserSessionProvider implements UserSessionProvider {
                                                                                                                      ClientModel client,
                                                                                                                      UserSessionModel userSession) {
         // Clone entity before returning back, to avoid giving away a reference to the live object to the caller
-        return origEntity -> new MapAuthenticatedClientSessionAdapter(session, realm, client, userSession, registerEntityForChanges(origEntity)) {
-            @Override
-            public void detachFromUserSession() {
-                this.userSession = null;
+        return origEntity -> {
+            if (origEntity.getExpiration() <= Time.currentTime()) {
+                userSession.removeAuthenticatedClientSessions(Arrays.asList(origEntity.getClientId()));
+                clientSessionTx.delete(origEntity.getId());
+                return null;
+            } else {
+                return new MapAuthenticatedClientSessionAdapter(session, realm, client, userSession, registerEntityForChanges(origEntity)) {
+                    @Override
+                    public void detachFromUserSession() {
+                        this.userSession = null;
 
-                clientSessionTx.delete(entity.getId());
+                        clientSessionTx.delete(entity.getId());
+                    }
+
+                    @Override
+                    public void setTimestamp(int timestamp) {
+                        entity.setTimestamp(timestamp);
+                        // whenever the timestamp is changed recompute the expiration time
+                        setClientSessionExpiration(entity, realm, client);
+                    }
+                };
             }
         };
     }
@@ -130,6 +163,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
     public AuthenticatedClientSessionModel createClientSession(RealmModel realm, ClientModel client, UserSessionModel userSession) {
         MapAuthenticatedClientSessionEntity entity =
                 new MapAuthenticatedClientSessionEntity(UUID.randomUUID(), userSession.getId(), realm.getId(), client.getId(), false);
+        setClientSessionExpiration(entity, realm, client);
 
         LOG.tracef("createClientSession(%s, %s, %s)%s", realm, client, userSession, getShortStackTrace());
 
@@ -188,6 +222,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         MapUserSessionEntity entity = new MapUserSessionEntity(entityId, realm, user, loginUsername, ipAddress, authMethod, rememberMe, brokerSessionId, brokerUserId, false);
         entity.setPersistenceState(persistenceState);
+        setUserSessionExpiration(entity, realm);
 
         if (Objects.equals(persistenceState, TRANSIENT)) {
             transientUserSessions.put(entityId, entity);
@@ -378,7 +413,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
                 .compare(UserSessionModel.SearchableFields.IS_EXPIRED, ModelCriteriaBuilder.Operator.EQ,
                         expiredRememberMe, expiredRefreshRememberMe, expired, expiredRefresh, expiredOffline);
 
-        userSessionTx.delete(UUID.randomUUID(), userSessionMcb);
+        //userSessionTx.delete(UUID.randomUUID(), userSessionMcb);
     }
 
     @Override
@@ -414,6 +449,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
         int currentTime = Time.currentTime();
         offlineUserSession.setStarted(currentTime);
         offlineUserSession.setLastSessionRefresh(currentTime);
+        setUserSessionExpiration(offlineUserSession, userSession.getRealm());
 
         userSessionTx.create(offlineUserSession.getId(), offlineUserSession);
 
@@ -454,6 +490,7 @@ public class MapUserSessionProvider implements UserSessionProvider {
 
         MapAuthenticatedClientSessionEntity clientSessionEntity = createAuthenticatedClientSessionInstance(clientSession, offlineUserSession, true);
         clientSessionEntity.setTimestamp(Time.currentTime());
+        setClientSessionExpiration(clientSessionEntity, clientSession.getRealm(), clientSession.getClient());
 
         Optional<MapUserSessionEntity> userSessionEntity = getOfflineUserSessionEntityStream(clientSession.getRealm(), offlineUserSession.getId()).findFirst();
         if (userSessionEntity.isPresent()) {
@@ -644,6 +681,131 @@ public class MapUserSessionProvider implements UserSessionProvider {
         entity.setTimestamp(clientSession.getTimestamp());
 
         return entity;
+    }
+
+    private void setClientSessionExpiration(MapAuthenticatedClientSessionEntity entity, RealmModel realm, ClientModel client) {
+        if (entity.isOffline()) {
+            long sessionExpires = entity.getTimestamp() + realm.getOfflineSessionIdleTimeout();
+            if (realm.isOfflineSessionMaxLifespanEnabled()) {
+                sessionExpires = entity.getTimestamp() + realm.getOfflineSessionMaxLifespan();
+
+                long clientOfflineSessionMaxLifespan;
+                String clientOfflineSessionMaxLifespanPerClient = client.getAttribute(OIDCConfigAttributes.CLIENT_OFFLINE_SESSION_MAX_LIFESPAN);
+                if (clientOfflineSessionMaxLifespanPerClient != null && !clientOfflineSessionMaxLifespanPerClient.trim().isEmpty()) {
+                    clientOfflineSessionMaxLifespan = Long.parseLong(clientOfflineSessionMaxLifespanPerClient);
+                } else {
+                    clientOfflineSessionMaxLifespan = realm.getClientOfflineSessionMaxLifespan();
+                }
+
+                if (clientOfflineSessionMaxLifespan > 0) {
+                    long clientOfflineSessionMaxExpiration = entity.getTimestamp() + clientOfflineSessionMaxLifespan;
+                    sessionExpires = Math.min(sessionExpires, clientOfflineSessionMaxExpiration);
+                }
+            }
+
+            long expiration = entity.getTimestamp() + realm.getOfflineSessionIdleTimeout();
+
+            long clientOfflineSessionIdleTimeout;
+            String clientOfflineSessionIdleTimeoutPerClient = client.getAttribute(OIDCConfigAttributes.CLIENT_OFFLINE_SESSION_IDLE_TIMEOUT);
+            if (clientOfflineSessionIdleTimeoutPerClient != null && !clientOfflineSessionIdleTimeoutPerClient.trim().isEmpty()) {
+                clientOfflineSessionIdleTimeout = Long.parseLong(clientOfflineSessionIdleTimeoutPerClient);
+            } else {
+                clientOfflineSessionIdleTimeout = realm.getClientOfflineSessionIdleTimeout();
+            }
+
+            if (clientOfflineSessionIdleTimeout > 0) {
+                long clientOfflineSessionIdleExpiration = entity.getTimestamp() + clientOfflineSessionIdleTimeout;
+                expiration = Math.min(expiration, clientOfflineSessionIdleExpiration);
+            }
+
+            entity.setExpiration(Math.min(expiration, sessionExpires));
+        } else {
+            long sessionExpires = (long) entity.getTimestamp() + (realm.getSsoSessionMaxLifespanRememberMe() > 0
+                    ? realm.getSsoSessionMaxLifespanRememberMe() : realm.getSsoSessionMaxLifespan());
+
+            long clientSessionMaxLifespan;
+            String clientSessionMaxLifespanPerClient = client.getAttribute(OIDCConfigAttributes.CLIENT_SESSION_MAX_LIFESPAN);
+            if (clientSessionMaxLifespanPerClient != null && !clientSessionMaxLifespanPerClient.trim().isEmpty()) {
+                clientSessionMaxLifespan = Long.parseLong(clientSessionMaxLifespanPerClient);
+            } else {
+                clientSessionMaxLifespan = realm.getClientSessionMaxLifespan();
+            }
+
+            if (clientSessionMaxLifespan > 0) {
+                long clientSessionMaxExpiration = entity.getTimestamp() + clientSessionMaxLifespan;
+                sessionExpires = Math.min(sessionExpires, clientSessionMaxExpiration);
+            }
+
+            long expiration = (long) entity.getTimestamp() + (realm.getSsoSessionIdleTimeoutRememberMe() > 0
+                    ? realm.getSsoSessionIdleTimeoutRememberMe() : realm.getSsoSessionIdleTimeout());
+
+            long clientSessionIdleTimeout;
+            String clientSessionIdleTimeoutPerClient = client.getAttribute(OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT);
+            if (clientSessionIdleTimeoutPerClient != null && !clientSessionIdleTimeoutPerClient.trim().isEmpty()) {
+                clientSessionIdleTimeout = Long.parseLong(clientSessionIdleTimeoutPerClient);
+            } else {
+                clientSessionIdleTimeout = realm.getClientSessionIdleTimeout();
+            }
+
+            if (clientSessionIdleTimeout > 0) {
+                long clientSessionIdleExpiration = entity.getTimestamp() + clientSessionIdleTimeout;
+                expiration = Math.min(expiration, clientSessionIdleExpiration);
+            }
+
+            entity.setExpiration(Math.min(expiration, sessionExpires));
+        }
+    }
+
+    private void setUserSessionExpiration(MapUserSessionEntity entity, RealmModel realm) {
+        if (entity.isOffline()) {
+            long sessionExpires = entity.getLastSessionRefresh() + realm.getOfflineSessionIdleTimeout();
+            if (realm.isOfflineSessionMaxLifespanEnabled()) {
+                sessionExpires = entity.getStarted() + realm.getOfflineSessionMaxLifespan();
+
+                long clientOfflineSessionMaxLifespan = realm.getClientOfflineSessionMaxLifespan();
+
+                if (clientOfflineSessionMaxLifespan > 0) {
+                    long clientOfflineSessionMaxExpiration = entity.getStarted() + clientOfflineSessionMaxLifespan;
+                    sessionExpires = Math.min(sessionExpires, clientOfflineSessionMaxExpiration);
+                }
+            }
+
+            long expiration = entity.getLastSessionRefresh() + realm.getOfflineSessionIdleTimeout();
+
+            long clientOfflineSessionIdleTimeout = realm.getClientOfflineSessionIdleTimeout();
+
+            if (clientOfflineSessionIdleTimeout > 0) {
+                long clientOfflineSessionIdleExpiration = Time.currentTime() + clientOfflineSessionIdleTimeout;
+                expiration = Math.min(expiration, clientOfflineSessionIdleExpiration);
+            }
+
+            entity.setExpiration(Math.min(expiration, sessionExpires));
+        } else {
+            long sessionExpires = (long) entity.getStarted()
+                    + (entity.isRememberMe() && realm.getSsoSessionMaxLifespanRememberMe() > 0
+                    ? realm.getSsoSessionMaxLifespanRememberMe()
+                    : realm.getSsoSessionMaxLifespan());
+
+            long clientSessionMaxLifespan = realm.getClientSessionMaxLifespan();
+
+            if (clientSessionMaxLifespan > 0) {
+                long clientSessionMaxExpiration = entity.getStarted() + clientSessionMaxLifespan;
+                sessionExpires = Math.min(sessionExpires, clientSessionMaxExpiration);
+            }
+
+            long expiration = (long) entity.getLastSessionRefresh() + (entity.isRememberMe() && realm.getSsoSessionIdleTimeoutRememberMe() > 0
+                    ? realm.getSsoSessionIdleTimeoutRememberMe()
+                    : realm.getSsoSessionIdleTimeout());
+
+            long clientSessionIdleTimeout = realm.getClientSessionIdleTimeout();
+
+            if (clientSessionIdleTimeout > 0) {
+                long clientSessionIdleExpiration = entity.getLastSessionRefresh() + clientSessionIdleTimeout;
+                expiration = Math.min(expiration, clientSessionIdleExpiration);
+            }
+
+            entity.setExpiration(Math.min(expiration, sessionExpires));
+        }
     }
 
     private UUID toUUID(String id) {

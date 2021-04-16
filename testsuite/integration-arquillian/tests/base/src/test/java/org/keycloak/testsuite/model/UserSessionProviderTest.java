@@ -119,9 +119,10 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
     public void testUpdateSession(KeycloakSession session) {
         RealmModel realm = session.realms().getRealmByName("test");
         UserSessionModel[] sessions = createSessions(session);
-        session.sessions().getUserSession(realm, sessions[0].getId()).setLastSessionRefresh(1000);
+        int lastRefresh = Time.currentTime();
+        session.sessions().getUserSession(realm, sessions[0].getId()).setLastSessionRefresh(lastRefresh);
 
-        assertEquals(1000, session.sessions().getUserSession(realm, sessions[0].getId()).getLastSessionRefresh());
+        assertEquals(lastRefresh, session.sessions().getUserSession(realm, sessions[0].getId()).getLastSessionRefresh());
     }
 
     @Test
@@ -129,8 +130,9 @@ public class UserSessionProviderTest extends AbstractTestRealmKeycloakTest {
     public void testUpdateSessionInSameTransaction(KeycloakSession session) {
         RealmModel realm = session.realms().getRealmByName("test");
         UserSessionModel[] sessions = createSessions(session);
-        session.sessions().getUserSession(realm, sessions[0].getId()).setLastSessionRefresh(1000);
-        assertEquals(1000, session.sessions().getUserSession(realm, sessions[0].getId()).getLastSessionRefresh());
+        int lastRefresh = Time.currentTime();
+        session.sessions().getUserSession(realm, sessions[0].getId()).setLastSessionRefresh(lastRefresh);
+        assertEquals(lastRefresh, session.sessions().getUserSession(realm, sessions[0].getId()).getLastSessionRefresh());
     }
 
     @Test

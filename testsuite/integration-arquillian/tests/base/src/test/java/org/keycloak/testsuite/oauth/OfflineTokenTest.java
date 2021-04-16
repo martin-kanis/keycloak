@@ -273,7 +273,7 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
     private String testRefreshWithOfflineToken(AccessToken oldToken, RefreshToken offlineToken, String offlineTokenString,
                                                final String sessionId, String userId) {
         // Change offset to big value to ensure userSession expired
-        setTimeOffset(99999);
+        setTimeOffset(30000);
         assertFalse(oldToken.isActive());
         assertTrue(offlineToken.isActive());
 
@@ -494,7 +494,7 @@ public class OfflineTokenTest extends AbstractKeycloakTest {
         events.clear();
 
         // Set the time offset, so that "normal" userSession expires
-        setTimeOffset(86400);
+        setTimeOffset(30000);
 
         // Remove expired sessions. This will remove "normal" userSession
         testingClient.testing().removeUserSessions(appRealm.toRepresentation().getId());

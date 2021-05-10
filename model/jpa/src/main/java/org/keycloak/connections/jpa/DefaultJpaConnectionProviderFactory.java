@@ -168,7 +168,7 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
                         boolean initializeEmpty = config.getBoolean("initializeEmpty", true);
                         File databaseUpdateFile = getDatabaseUpdateFile();
 
-                        properties.put("hibernate.show_sql", config.getBoolean("showSql", false));
+                        properties.put("hibernate.show_sql", config.getBoolean("showSql", true));
                         properties.put("hibernate.format_sql", config.getBoolean("formatSql", true));
 
                         Connection connection = getConnection();

@@ -111,27 +111,13 @@ public interface UserSessionPersisterProvider extends Provider {
                                                     Integer lastCreatedOn, String lastUserSessionId);
 
     /**
-     * Retrieves the count of user sessions for a given realm.
-     *
-     * If {@code realm} is {@literal null}, then all sessions are counted.
-     *
-     * @param realm
-     * @param offline
-     * @return
-     */
-    int getUserSessionsCount(RealmModel realm, boolean offline);
-
-    /**
      * Retrieves the count of user sessions for all realms.
      *
      * @param offline
      * @return
-     * 
-     * @see #getUserSessionsCount(RealmModel, boolean)
+     *
      */
-    default int getUserSessionsCount(boolean offline) {
-        return getUserSessionsCount(null, offline);
-    }
+    int getUserSessionsCount(boolean offline);
 
     /**
      * Retrieves the count of user client-sessions for the given client
@@ -151,12 +137,4 @@ public interface UserSessionPersisterProvider extends Provider {
      */
     Map<String, Long> getUserSessionsCountsByClients(RealmModel realm, boolean offline);
 
-
-    /**
-     * Removes the sessions from the given realm.
-     * @param realm
-     * @param offline
-     * @return
-     */
-    int removeUserSessions(RealmModel realm, Boolean offline);
 }

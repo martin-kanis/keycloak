@@ -38,6 +38,7 @@ import org.keycloak.timer.TimerProvider;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -181,6 +182,8 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
                 // assert the user session is still there
                 UserSessionModel userSession = session.sessions().getUserSession(realm, origSessions[0].getId());
                 Assert.assertEquals(origSessions[0], userSession);
+
+                Map<String, Long> map = session.sessions().getActiveClientSessionStats(realm, false);
 
                 // assert the client sessions are expired
                 clientSessionIds.get().forEach(clientSessionId ->

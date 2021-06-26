@@ -85,16 +85,20 @@
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
-            <artifactId>keycloak-model-hot-rod</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.keycloak</groupId>
             <artifactId>keycloak-model-map</artifactId>
         </dependency>
         <dependency>
             <groupId>org.keycloak.testsuite</groupId>
             <artifactId>integration-arquillian-testsuite-providers</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-model-hot-rod</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.infinispan</groupId>
+            <artifactId>infinispan-server-core</artifactId>
         </dependency>
     </dependencies>
 
@@ -269,6 +273,7 @@
                 <keycloak.model.parameters>Jpa,Map,ConcurrentHashMapStorage</keycloak.model.parameters>
             </properties>
         </profile>
+
         <profile>
             <id>hot-rod</id>
             <properties>

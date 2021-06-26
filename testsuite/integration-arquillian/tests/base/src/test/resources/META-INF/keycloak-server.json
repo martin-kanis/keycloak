@@ -244,6 +244,12 @@
         }
     },
 
+    "connectionsHotRod": {
+        "default": {
+
+        }
+    },
+
     "truststore": {
         "file": {
             "file": "${keycloak.truststore.file:target/dependency/keystore/keycloak.truststore}",

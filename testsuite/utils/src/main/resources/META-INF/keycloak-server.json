@@ -124,6 +124,12 @@
         }
     },
 
+    "connectionsHotRod": {
+        "default": {
+
+        }
+    },
+
     "scripting": {
     },
 

@@ -1,6 +1,7 @@
 package org.keycloak.testsuite.model;
 
 import org.infinispan.client.hotrod.RemoteCacheManager;
+import org.infinispan.client.hotrod.configuration.ClientIntelligence;
 import org.infinispan.commons.dataconversion.MediaType;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.BackupFailurePolicy;
@@ -69,6 +70,46 @@ public class HotRodServerRule extends ExternalResource {
 
         getCaches(USER_SESSION_CACHE_NAME, OFFLINE_USER_SESSION_CACHE_NAME, CLIENT_SESSION_CACHE_NAME, OFFLINE_CLIENT_SESSION_CACHE_NAME,
                 LOGIN_FAILURE_CACHE_NAME, WORK_CACHE_NAME, ACTION_TOKEN_CACHE);
+    }
+
+    public void createHotRodMapStoreServer() {
+        //hotRodCacheManager = configureCacheManager("site-1", "infinispan/hotrod-jgroups-udp.xml", new ProtoStreamMarshaller());
+        hotRodCacheManager = configureHotRodCacheManager("hotRod/infinispan.xml");
+
+        /*ConfigurationBuilder cfg = new ConfigurationBuilder();
+        cfg.encoding().mediaType(MediaType.APPLICATION_PROTOSTREAM_TYPE);
+        hotRodCacheManager.defineConfiguration("clients", cfg.build());*/
+
+        HotRodServerConfigurationBuilder hotRodServerConfigurationBuilder = new HotRodServerConfigurationBuilder();
+        /*SimpleServerAuthenticationProvider sap = new SimpleServerAuthenticationProvider();
+        sap.addUser("admin", "realm", "password".toCharArray());
+        hotRodServerConfigurationBuilder.authentication()
+                .enable()
+                .serverAuthenticationProvider(sap)
+                .serverName("localhost")
+                .addAllowedMech("SCRAM-SHA-512");*/
+        hotRodServer = new HotRodServer();
+        hotRodServer.start(hotRodServerConfigurationBuilder.build(), hotRodCacheManager);
+    }
+
+    public void createHotRodRemoteCache() {
+        org.infinispan.client.hotrod.configuration.ConfigurationBuilder builder = new org.infinispan.client.hotrod.configuration.ConfigurationBuilder();
+        builder.addServer().host("127.0.0.1").port(11222);
+        builder.clientIntelligence(ClientIntelligence.BASIC);
+        //.security().authentication().enable().saslMechanism("SCRAM-SHA-512").serverName("localhost").realm("realm").username("admin").password("password");
+        remoteCacheManager = new RemoteCacheManager(builder.build());
+        remoteCacheManager.getCache("clients");
+    }
+
+    private DefaultCacheManager configureHotRodCacheManager(String configPath) {
+        DefaultCacheManager manager = null;
+        try {
+            manager = new DefaultCacheManager(configPath);
+        } catch (IOException e) {
+            new RuntimeException(e);
+        }
+
+        return manager;
     }
 
     private void getCaches(String ...cache) {

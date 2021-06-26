@@ -26,6 +26,8 @@ import org.keycloak.models.map.authSession.MapRootAuthenticationSessionProviderF
 import org.keycloak.models.map.authorization.MapAuthorizationStoreFactory;
 import org.keycloak.models.map.client.MapClientProviderFactory;
 import org.keycloak.models.map.clientscope.MapClientScopeProviderFactory;
+import org.keycloak.models.map.connections.HotRodConnectionProviderFactory;
+import org.keycloak.models.map.connections.HotRodConnectionSpi;
 import org.keycloak.models.map.deploymentState.MapDeploymentStateProviderFactory;
 import org.keycloak.models.map.group.MapGroupProviderFactory;
 import org.keycloak.models.map.loginFailure.MapUserLoginFailureProviderFactory;
@@ -39,6 +41,7 @@ import org.keycloak.provider.ProviderFactory;
 import org.keycloak.provider.Spi;
 import org.keycloak.sessions.AuthenticationSessionSpi;
 import org.keycloak.testsuite.model.Config;
+import org.keycloak.testsuite.model.HotRodServerRule;
 import org.keycloak.testsuite.model.KeycloakModelParameters;
 
 import java.util.Set;
@@ -50,14 +53,18 @@ import java.util.Set;
 public class HotRodMapStorage extends KeycloakModelParameters {
 
     static final Set<Class<? extends Spi>> ALLOWED_SPIS = ImmutableSet.<Class<? extends Spi>>builder()
+      .add(HotRodConnectionSpi.class)
       .build();
 
     static final Set<Class<? extends ProviderFactory>> ALLOWED_FACTORIES = ImmutableSet.<Class<? extends ProviderFactory>>builder()
       .add(HotRodMapStorageProviderFactory.class)
+      .add(HotRodConnectionProviderFactory.class)
       .add(ConcurrentHashMapStorageProviderFactory.class)
       .build();
     
     private static final String STORAGE_CONFIG = "storage.provider";
+
+    private HotRodServerRule hotRodServerRule = new HotRodServerRule();
 
     @Override
     public void updateConfig(Config cf) {
@@ -74,6 +81,12 @@ public class HotRodMapStorage extends KeycloakModelParameters {
                                                                                        .config("storage-client-sessions.provider", ConcurrentHashMapStorageProviderFactory.PROVIDER_ID)
           .spi(UserLoginFailureSpi.NAME).provider(MapUserLoginFailureProviderFactory.PROVIDER_ID).config(STORAGE_CONFIG, ConcurrentHashMapStorageProviderFactory.PROVIDER_ID)
           .spi("dblock").provider(NoLockingDBLockProviderFactory.PROVIDER_ID).config(STORAGE_CONFIG, ConcurrentHashMapStorageProviderFactory.PROVIDER_ID);
+    }
+
+    @Override
+    public void suiteRule(Config cf) {
+        hotRodServerRule.createHotRodMapStoreServer();
+        hotRodServerRule.createHotRodRemoteCache();
     }
 
     public HotRodMapStorage() {

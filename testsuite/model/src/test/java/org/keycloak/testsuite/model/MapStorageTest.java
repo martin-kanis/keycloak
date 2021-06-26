@@ -16,6 +16,7 @@
  */
 package org.keycloak.testsuite.model;
 
+import org.junit.Assume;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientProvider;
@@ -26,18 +27,25 @@ import org.keycloak.models.RealmProvider;
 import org.keycloak.models.map.client.MapClientEntity;
 import org.keycloak.models.map.client.MapClientEntityImpl;
 import org.keycloak.models.map.client.MapClientProviderFactory;
+import org.keycloak.models.map.common.AbstractEntity;
 import org.keycloak.models.map.storage.MapStorage;
 import org.keycloak.models.map.storage.MapStorageProvider;
-import org.keycloak.models.map.storage.MapStorageProviderFactory;
 import org.keycloak.models.map.common.StringKeyConvertor;
 import org.keycloak.models.map.storage.chm.ConcurrentHashMapStorage;
 import org.keycloak.models.map.storage.chm.ConcurrentHashMapStorageProviderFactory;
+import org.keycloak.models.map.storage.hotRod.HotRodMapStorage;
+import org.keycloak.models.map.storage.hotRod.HotRodMapStorageProviderFactory;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.provider.InvalidationHandler.ObjectType;
-import org.hamcrest.Matchers;
 import org.jboss.logging.Logger;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -56,13 +64,31 @@ public class MapStorageTest extends KeycloakModelTest {
 
     private String realmId;
 
-    private String mapStorageProviderId;
+    private Map<Class<?>, MapStorage<AbstractEntity, ?>> modelTypeToMapStorage = new HashMap<>();
+
+    private Map<Class<?>, String> modelTypeToProviderId = new HashMap<>();
+
+    private static List<Class<?>> modelTypes = Arrays.asList(ClientModel.class);
+
+    private static List<String> mapStorageProviderIds = Arrays.asList(ConcurrentHashMapStorageProviderFactory.PROVIDER_ID, HotRodMapStorageProviderFactory.PROVIDER_ID);
 
     @Before
     public void initMapStorageProviderId() {
-        MapStorageProviderFactory ms = (MapStorageProviderFactory) getFactory().getProviderFactory(MapStorageProvider.class);
-        mapStorageProviderId = ms.getId();
-        assertThat(mapStorageProviderId, Matchers.notNullValue());
+        modelTypes.forEach(modelType -> {
+            mapStorageProviderIds.forEach(mapStorageProviderId -> {
+                inComittedTransaction(session -> {
+                    MapStorageProvider mapStorageProvider = session.getProvider(MapStorageProvider.class, mapStorageProviderId);
+
+                    if (mapStorageProvider != null) {
+                        MapStorage<AbstractEntity, ?> storage = mapStorageProvider.getStorage(modelType);
+                        if (storage != null) {
+                            modelTypeToMapStorage.put(modelType, storage);
+                            modelTypeToProviderId.put(modelType, mapStorageProviderId);
+                        }
+                    }
+                });
+            });
+        });
     }
 
     @Override
@@ -80,11 +106,13 @@ public class MapStorageTest extends KeycloakModelTest {
     @Test
     @SuppressWarnings("unchecked")
     public <K, K1, K2> void testStorageSeparation() {
-        String component1Id = createMapStorageComponent("component1", "keyType", "ulong");
-        String component2Id = createMapStorageComponent("component2", "keyType", "string");
+        Assume.assumeFalse("Skipping the test for HotRodMapStorage", modelTypeToMapStorage.get(ClientModel.class) instanceof HotRodMapStorage);
+
+        String component1Id = createMapStorageComponent("component1", ClientModel.class,"keyType", "ulong");
+        String component2Id = createMapStorageComponent("component2", ClientModel.class,"keyType", "string");
 
         String[] ids = withRealm(realmId, (session, realm) -> {
-            ConcurrentHashMapStorage<K, MapClientEntity, ClientModel> storageMain = (ConcurrentHashMapStorage<K, MapClientEntity, ClientModel>) (MapStorage) session.getProvider(MapStorageProvider.class).getStorage(ClientModel.class);
+            ConcurrentHashMapStorage<K, MapClientEntity, ClientModel> storageMain = (ConcurrentHashMapStorage<K, MapClientEntity, ClientModel>) (MapStorage) modelTypeToMapStorage.get(ClientModel.class);
             ConcurrentHashMapStorage<K1, MapClientEntity, ClientModel> storage1 = (ConcurrentHashMapStorage<K1, MapClientEntity, ClientModel>) (MapStorage) session.getComponentProvider(MapStorageProvider.class, component1Id).getStorage(ClientModel.class);
             ConcurrentHashMapStorage<K2, MapClientEntity, ClientModel> storage2 = (ConcurrentHashMapStorage<K2, MapClientEntity, ClientModel>) (MapStorage) session.getComponentProvider(MapStorageProvider.class, component2Id).getStorage(ClientModel.class);
 
@@ -165,7 +193,7 @@ public class MapStorageTest extends KeycloakModelTest {
         // Check that in the next transaction, the objects are still there
         withRealm(realmId, (session, realm) -> {
             @SuppressWarnings("unchecked")
-            ConcurrentHashMapStorage<K, MapClientEntity, ClientModel> storageMain = (ConcurrentHashMapStorage<K, MapClientEntity, ClientModel>) (MapStorage) session.getProvider(MapStorageProvider.class).getStorage(ClientModel.class);
+            ConcurrentHashMapStorage<K, MapClientEntity, ClientModel> storageMain = (ConcurrentHashMapStorage<K, MapClientEntity, ClientModel>) (MapStorage) modelTypeToMapStorage.get(ClientModel.class);
             @SuppressWarnings("unchecked")
             ConcurrentHashMapStorage<K1, MapClientEntity, ClientModel> storage1 = (ConcurrentHashMapStorage<K1, MapClientEntity, ClientModel>) (MapStorage) session.getComponentProvider(MapStorageProvider.class, component1Id).getStorage(ClientModel.class);
             @SuppressWarnings("unchecked")
@@ -193,8 +221,8 @@ public class MapStorageTest extends KeycloakModelTest {
         });
     }
 
-    private String createMapStorageComponent(String name, String... config) {
-        ComponentModel c1 = KeycloakModelUtils.createComponentModel(name, realmId, mapStorageProviderId, MapStorageProvider.class.getName(), config);
+    private String createMapStorageComponent(String name, Class modelType, String... config) {
+        ComponentModel c1 = KeycloakModelUtils.createComponentModel(name, realmId, modelTypeToProviderId.get(modelType), MapStorageProvider.class.getName(), config);
 
         return withRealm(realmId, (s, r) -> r.addComponentModel(c1).getId());
     }

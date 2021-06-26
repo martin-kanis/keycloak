@@ -69,7 +69,7 @@
         "provider": "${keycloak.client.provider:jpa}",
         "map": {
             "storage": {
-                "provider": "hotrod"
+                "provider": "concurrenthashmap"
             }
         }
     },
@@ -241,6 +241,14 @@
             "remoteStorePort": "${keycloak.connectionsInfinispan.remoteStorePort:11222}",
             "hotrodProtocolVersion": "${keycloak.connectionsInfinispan.hotrodProtocolVersion}",
             "embedded": "${keycloak.connectionsInfinispan.embedded:true}"
+        }
+    },
+
+    "connectionsHotRod": {
+        "default": {
+            "embedded": "${keycloak.connectionsHotRod.embedded:true}",
+            "embeddedPort": "${keycloak.connectionsHotRod.embeddedPort:11444}",
+            "enableSecurity": "${keycloak.connectionsHotRod.enableSecurity:false}"
         }
     },
 

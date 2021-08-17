@@ -173,6 +173,8 @@ public interface MapClientEntity extends AbstractEntity, UpdatableEntity {
 
     void setPublicClient(Boolean publicClient);
 
+    void setRealmId(String realmId);
+
     void setRedirectUris(Set<String> redirectUris);
 
     void setRegistrationToken(String registrationToken);

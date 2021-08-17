@@ -406,6 +406,11 @@ public class MapClientEntityLazyDelegate implements MapClientEntity {
     }
 
     @Override
+    public void setRealmId(String realmId) {
+        getDelegate().setRealmId(realmId);
+    }
+
+    @Override
     public void setRedirectUris(Set<String> redirectUris) {
         getDelegate().setRedirectUris(redirectUris);
     }

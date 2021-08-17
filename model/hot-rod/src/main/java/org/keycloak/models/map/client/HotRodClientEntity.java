@@ -1,22 +1,10 @@
-/*
- * Copyright 2020 Red Hat, Inc. and/or its affiliates
- * and other contributors as indicated by the @author tags.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- * http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.keycloak.models.map.client;
 
+import org.infinispan.protostream.annotations.ProtoDoc;
+import org.infinispan.protostream.annotations.ProtoField;
 import org.keycloak.models.ProtocolMapperModel;
+import org.keycloak.models.map.common.Versioned;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,77 +12,189 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- *
- * @author hmlnarik
- */
-public class MapClientEntityImpl implements MapClientEntity {
+public class HotRodClientEntity implements MapClientEntity, Versioned {
 
-    private String id;
-    private String realmId;
+    @ProtoField(number = 1, required = true)
+    @ProtoDoc("@Field(index = Index.YES, store = Store.YES)")
+    public int entityVersion = 1;
 
-    private String clientId;
-    private String name;
-    private String description;
-    private Set<String> redirectUris = new HashSet<>();
-    private boolean enabled;
-    private boolean alwaysDisplayInConsole;
-    private String clientAuthenticatorType;
-    private String secret;
-    private String registrationToken;
-    private String protocol;
-    private Map<String, List<String>> attributes = new HashMap<>();
-    private Map<String, String> authFlowBindings = new HashMap<>();
-    private boolean publicClient;
-    private boolean fullScopeAllowed;
-    private boolean frontchannelLogout;
-    private int notBefore;
-    private Set<String> scope = new HashSet<>();
-    private Set<String> webOrigins = new HashSet<>();
-    private Map<String, ProtocolMapperModel> protocolMappers = new HashMap<>();
-    private Map<String, Boolean> clientScopes = new HashMap<>();
-    private Set<String> scopeMappings = new LinkedHashSet<>();
-    private boolean surrogateAuthRequired;
-    private String managementUrl;
-    private String rootUrl;
-    private String baseUrl;
-    private boolean bearerOnly;
-    private boolean consentRequired;
-    private boolean standardFlowEnabled;
-    private boolean implicitFlowEnabled;
-    private boolean directAccessGrantsEnabled;
-    private boolean serviceAccountsEnabled;
-    private int nodeReRegistrationTimeout;
+    @ProtoField(number = 2, required = true)
+    @ProtoDoc("@Field(index = Index.YES, store = Store.YES)")
+    public String id;
 
-    /**
-     * Flag signalizing that any of the setters has been meaningfully used.
-     */
-    protected boolean updated;
+    @ProtoField(number = 3, required = true)
+    @ProtoDoc("@Field(index = Index.YES, store = Store.YES)")
+    public String realmId;
 
-    protected MapClientEntityImpl() {
-        this.id = null;
-        this.realmId = null;
-    }
 
-    public MapClientEntityImpl(String id) {
+
+    @ProtoField(number = 4, required = true)
+    @ProtoDoc("@Field(index = Index.YES, store = Store.YES)")
+    public String clientId;
+
+    @ProtoField(number = 5)
+    public String name;
+
+    @ProtoField(number = 6)
+    public String description;
+
+    @ProtoField(number = 7)
+    public Set<String> redirectUris = new HashSet<>();
+
+    @ProtoField(number = 8, defaultValue = "false")
+    public boolean enabled;
+
+    @ProtoField(number = 9, defaultValue = "false")
+    public boolean alwaysDisplayInConsole;
+
+    @ProtoField(number = 10)
+    public String clientAuthenticatorType;
+
+    @ProtoField(number = 11)
+    public String secret;
+
+    public String registrationToken;
+    @ProtoField(number = 13)
+    public String protocol;
+
+    @ProtoField(number = 14)
+    public Set<AttributeEntity> attributes = new LinkedHashSet<>();
+
+    // TODO:
+    public Map<String, String> authFlowBindings = new HashMap<>();
+
+    @ProtoField(number = 16, defaultValue = "false")
+    public boolean publicClient;
+
+    @ProtoField(number = 17, defaultValue = "false")
+    public boolean fullScopeAllowed;
+
+    @ProtoField(number = 18, defaultValue = "false")
+    public boolean frontchannelLogout;
+
+    @ProtoField(number = 19, defaultValue = "0")
+    public int notBefore;
+
+    @ProtoField(number = 20)
+    public Set<String> scope = new HashSet<>();
+
+    @ProtoField(number = 21)
+    public Set<String> webOrigins = new HashSet<>();
+
+    // TODO:
+    public Map<String, ProtocolMapperModel> protocolMappers = new HashMap<>();
+
+    // TODO
+    public Map<String, Boolean> clientScopes = new HashMap<>();
+
+    @ProtoField(number = 24)
+    public Set<String> scopeMappings = new LinkedHashSet<>();
+
+    @ProtoField(number = 25, defaultValue = "false")
+    public boolean surrogateAuthRequired;
+
+    @ProtoField(number = 26)
+    public String managementUrl;
+
+    @ProtoField(number = 27)
+    public String baseUrl;
+
+    @ProtoField(number = 28, defaultValue = "false")
+    public boolean bearerOnly;
+
+    @ProtoField(number = 29, defaultValue = "false")
+    public boolean consentRequired;
+
+    @ProtoField(number = 30)
+    public String rootUrl;
+
+    @ProtoField(number = 31, defaultValue = "false")
+    public boolean standardFlowEnabled;
+
+    @ProtoField(number = 32, defaultValue = "false")
+    public boolean implicitFlowEnabled;
+
+    @ProtoField(number = 33, defaultValue = "false")
+    public boolean directAccessGrantsEnabled;
+
+    @ProtoField(number = 34, defaultValue = "false")
+    public boolean serviceAccountsEnabled;
+
+    @ProtoField(number = 35, defaultValue = "0")
+    public int nodeReRegistrationTimeout;
+
+    private boolean updated = false;
+
+    public HotRodClientEntity() {}
+
+    public HotRodClientEntity(String id) {
         this.id = id;
     }
 
     @Override
-    public String getId() {
-        return this.id;
+    public int getEntityVersion() {
+        return entityVersion;
     }
 
     @Override
-    public boolean isUpdated() {
-        return this.updated;
+    public List<String> getAttribute(String name) {
+        return attributes.stream()
+                .filter(attributeEntity -> Objects.equals(attributeEntity.getName(), name))
+                .findFirst()
+                .map(AttributeEntity::getValues)
+                .orElse(Collections.emptyList());
+    }
+
+    @Override
+    public Map<String, List<String>> getAttributes() {
+        return attributes.stream().collect(Collectors.toMap(AttributeEntity::getName, AttributeEntity::getValues));
+    }
+
+    @Override
+    public void setAttribute(String name, List<String> values) {
+        boolean valueUndefined = values == null || values.isEmpty();
+
+        Optional<AttributeEntity> first = attributes.stream()
+                .filter(attributeEntity -> Objects.equals(attributeEntity.getName(), name))
+                .findFirst();
+
+        if (first.isPresent()) {
+            AttributeEntity attributeEntity = first.get();
+            if (valueUndefined) {
+                this.updated = true;
+                removeAttribute(name);
+            } else {
+                this.updated |= !Objects.equals(attributeEntity.getValues(), values);
+                attributeEntity.setValues(values);
+            }
+
+            return;
+        }
+
+        // do not create attributes if empty or null
+        if (valueUndefined) {
+            return;
+        }
+
+        AttributeEntity newAttributeEntity = new AttributeEntity(name, values);
+        updated |= attributes.add(newAttributeEntity);
+    }
+
+    @Override
+    public void removeAttribute(String name) {
+        attributes.stream()
+                .filter(attributeEntity -> Objects.equals(attributeEntity.getName(), name))
+                .findFirst()
+                .ifPresent(attr -> {
+                    this.updated |= attributes.remove(attr);
+                });
     }
 
     @Override
@@ -205,16 +305,6 @@ public class MapClientEntityImpl implements MapClientEntity {
     public void setProtocol(String protocol) {
         this.updated |= ! Objects.equals(this.protocol, protocol);
         this.protocol = protocol;
-    }
-
-    @Override
-    public Map<String, List<String>> getAttributes() {
-        return attributes;
-    }
-
-    @Override
-    public void setAttribute(String name, List<String> values) {
-        this.updated |= ! Objects.equals(this.attributes.put(name, values), values);
     }
 
     @Override
@@ -481,16 +571,6 @@ public class MapClientEntityImpl implements MapClientEntity {
     }
 
     @Override
-    public void removeAttribute(String name) {
-        this.updated |= this.attributes.remove(name) != null;
-    }
-
-    @Override
-    public List<String> getAttribute(String name) {
-        return attributes.getOrDefault(name, Collections.EMPTY_LIST);
-    }
-
-    @Override
     public String getAuthenticationFlowBindingOverride(String binding) {
         return this.authFlowBindings.get(binding);
     }
@@ -547,8 +627,8 @@ public class MapClientEntityImpl implements MapClientEntity {
     @Override
     public Stream<String> getClientScopes(boolean defaultScope) {
         return this.clientScopes.entrySet().stream()
-          .filter(me -> Objects.equals(me.getValue(), defaultScope))
-          .map(Entry::getKey);
+                .filter(me -> Objects.equals(me.getValue(), defaultScope))
+                .map(Map.Entry::getKey);
     }
 
     @Override
@@ -556,4 +636,13 @@ public class MapClientEntityImpl implements MapClientEntity {
         return this.realmId;
     }
 
+    @Override
+    public String getId() {
+        return id;
+    }
+
+    @Override
+    public boolean isUpdated() {
+        return updated;
+    }
 }

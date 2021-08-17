@@ -140,7 +140,8 @@ public class MapClientProvider implements ClientProvider {
     public ClientModel addClient(RealmModel realm, String id, String clientId) {
         LOG.tracef("addClient(%s, %s, %s)%s", realm, id, clientId, getShortStackTrace());
 
-        MapClientEntity entity = new MapClientEntityImpl(id, realm.getId());
+        MapClientEntity entity = clientStore.newEntityInstance(id);
+        entity.setRealmId(realm.getId());
         entity.setClientId(clientId);
         entity.setEnabled(true);
         entity.setStandardFlowEnabled(true);

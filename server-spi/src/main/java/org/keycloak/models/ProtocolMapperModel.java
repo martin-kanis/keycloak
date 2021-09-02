@@ -76,21 +76,4 @@ public class ProtocolMapperModel implements Serializable {
     public void setConfig(Map<String, String> config) {
         this.config = config;
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ProtocolMapperModel that = (ProtocolMapperModel) o;
-
-        if (!id.equals(that.id)) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return id.hashCode();
-    }
 }

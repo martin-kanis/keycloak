@@ -60,8 +60,8 @@ public class HotRodMapStorageProviderFactory implements AmphibianProviderFactory
                 .port(11222)
                 .security()
                 .authentication()
-                .username("Titus Bramble")
-                .password("Shambles")
+                .username("admin")
+                .password("admin")
                 .realm("default")
                 .clientIntelligence(ClientIntelligence.BASIC)
                 .marshaller(new ProtoStreamMarshaller());

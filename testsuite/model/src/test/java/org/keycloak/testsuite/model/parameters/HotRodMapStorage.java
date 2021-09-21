@@ -26,6 +26,7 @@ import org.keycloak.models.map.authSession.MapRootAuthenticationSessionProviderF
 import org.keycloak.models.map.authorization.MapAuthorizationStoreFactory;
 import org.keycloak.models.map.client.MapClientProviderFactory;
 import org.keycloak.models.map.clientscope.MapClientScopeProviderFactory;
+import org.keycloak.models.map.connections.DefaultHotRodConnectionProviderFactory;
 import org.keycloak.models.map.connections.HotRodConnectionProviderFactory;
 import org.keycloak.models.map.connections.HotRodConnectionSpi;
 import org.keycloak.models.map.deploymentState.MapDeploymentStateProviderFactory;
@@ -81,12 +82,15 @@ public class HotRodMapStorage extends KeycloakModelParameters {
                                                                                        .config("storage-client-sessions.provider", ConcurrentHashMapStorageProviderFactory.PROVIDER_ID)
           .spi(UserLoginFailureSpi.NAME).provider(MapUserLoginFailureProviderFactory.PROVIDER_ID).config(STORAGE_CONFIG, ConcurrentHashMapStorageProviderFactory.PROVIDER_ID)
           .spi("dblock").provider(NoLockingDBLockProviderFactory.PROVIDER_ID).config(STORAGE_CONFIG, ConcurrentHashMapStorageProviderFactory.PROVIDER_ID);
+
+        cf.spi(HotRodConnectionSpi.NAME).provider(DefaultHotRodConnectionProviderFactory.PROVIDER_ID)
+                .config("enableSecurity", "false")
+                .config("configureRemoteCaches", "false");
     }
 
     @Override
     public void suiteRule(Config cf) {
         hotRodServerRule.createHotRodMapStoreServer();
-        hotRodServerRule.createHotRodRemoteCache();
     }
 
     public HotRodMapStorage() {

@@ -30,11 +30,12 @@
             <groupId>org.infinispan</groupId>
             <artifactId>infinispan-remote-query-client</artifactId>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>org.infinispan</groupId>-->
-<!--            <artifactId>infinispan-commons</artifactId>-->
-<!--            <version>${hot-rod-storage.infinispan.version}</version>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>org.infinispan.protostream</groupId>
+            <artifactId>protostream-processor</artifactId>
+            <version>4.3.4.Final</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
 </project>

@@ -16,12 +16,22 @@
  */
 package org.keycloak.models.map.connections;
 
+import org.infinispan.client.hotrod.RemoteCache;
 import org.infinispan.client.hotrod.RemoteCacheManager;
 import org.infinispan.client.hotrod.configuration.ClientIntelligence;
 import org.infinispan.client.hotrod.configuration.ConfigurationBuilder;
 import org.infinispan.commons.marshall.ProtoStreamMarshaller;
+import org.infinispan.protostream.GeneratedSchema;
+import org.infinispan.query.remote.client.ProtobufMetadataManagerConstants;
+import org.jboss.logging.Logger;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.models.map.common.HotRodEntityDescriptor;
+import org.keycloak.models.map.common.ProtoSchemaInitializer;
+import org.keycloak.models.map.storage.hotRod.HotRodMapStorageProviderFactory;
+
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
@@ -30,10 +40,17 @@ public class DefaultHotRodConnectionProviderFactory implements HotRodConnectionP
 
     public static final String PROVIDER_ID = "default";
 
+    private static final Logger LOG = Logger.getLogger(DefaultHotRodConnectionProviderFactory.class);
+
+    private org.keycloak.Config.Scope config;
+
     private RemoteCacheManager remoteCacheManager;
 
     @Override
     public HotRodConnectionProvider create(KeycloakSession session) {
+        if (remoteCacheManager == null) {
+            lazyInit();
+        }
         return new DefaultHotRodConnectionProvider(remoteCacheManager);
     }
 
@@ -54,14 +71,65 @@ public class DefaultHotRodConnectionProviderFactory implements HotRodConnectionP
 
     @Override
     public void init(org.keycloak.Config.Scope config) {
+        this.config = config;
+    }
+
+    public void lazyInit() {
         ConfigurationBuilder remoteBuilder = new ConfigurationBuilder();
         remoteBuilder.addServer()
-                .host("localhost")
-                .port(11222)
-                //.security().authentication().enable().saslMechanism("SCRAM-SHA-512").username("admin").password("password")
-                .clientIntelligence(ClientIntelligence.BASIC) // TODO shouldn't use BASIC in production
+                .host(config.get("host", "localhost"))
+                .port(config.getInt("port", 11222))
+                .clientIntelligence(ClientIntelligence.HASH_DISTRIBUTION_AWARE)
                 .marshaller(new ProtoStreamMarshaller());
 
+        if (config.getBoolean("enableSecurity", true)) {
+            remoteBuilder.security()
+                    .authentication()
+                    .saslMechanism("SCRAM-SHA-512")
+                    .username(config.get("username", "admin"))
+                    .password(config.get("password", "admin"))
+                    .realm(config.get("realm", "default"));
+        }
+
+        boolean configureRemoteCaches = config.getBoolean("configureRemoteCaches", false);
+        if (configureRemoteCaches) {
+            configureRemoteCaches(remoteBuilder);
+        }
+
+        remoteBuilder.addContextInitializer(ProtoSchemaInitializer.INSTANCE);
         remoteCacheManager = new RemoteCacheManager(remoteBuilder.build());
+
+        if (configureRemoteCaches) {
+            // access the caches to force their creation
+            HotRodMapStorageProviderFactory.ENTITY_DESCRIPTOR_MAP.values().stream()
+                    .map(HotRodEntityDescriptor::getCacheName)
+                    .forEach(remoteCacheManager::getCache);
+        }
+
+        registerSchemas(ProtoSchemaInitializer.INSTANCE);
+    }
+
+    private void registerSchemas(GeneratedSchema initializer) {
+        final RemoteCache<String, String> protoMetadataCache = remoteCacheManager.getCache(ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
+
+        protoMetadataCache.put(initializer.getProtoFileName(), initializer.getProtoFile());
+
+        String errors = protoMetadataCache.get(ProtobufMetadataManagerConstants.ERRORS_KEY_SUFFIX);
+        if (errors != null) {
+            throw new IllegalStateException("Some Protobuf schema files contain errors: " + errors + "\nSchema :\n" + initializer.getProtoFileName());
+        }
+    }
+
+    private void configureRemoteCaches(ConfigurationBuilder builder) {
+        URI uri;
+        try {
+            uri = DefaultHotRodConnectionProviderFactory.class.getClassLoader().getResource("config/cacheConfig.xml").toURI();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException("Cannot read the cache configuration!", e);
+        }
+
+        HotRodMapStorageProviderFactory.ENTITY_DESCRIPTOR_MAP.values().stream()
+                .map(HotRodEntityDescriptor::getCacheName)
+                .forEach(name -> builder.remoteCache(name).configurationURI(uri));
     }
 }

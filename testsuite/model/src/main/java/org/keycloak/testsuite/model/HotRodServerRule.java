@@ -1,7 +1,6 @@
 package org.keycloak.testsuite.model;
 
 import org.infinispan.client.hotrod.RemoteCacheManager;
-import org.infinispan.client.hotrod.configuration.ClientIntelligence;
 import org.infinispan.commons.dataconversion.MediaType;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.BackupFailurePolicy;
@@ -10,13 +9,27 @@ import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.jboss.marshalling.commons.GenericJBossMarshaller;
 import org.infinispan.manager.DefaultCacheManager;
+import org.infinispan.rest.configuration.RestServerConfigurationBuilder;
 import org.infinispan.server.hotrod.HotRodServer;
 import org.infinispan.server.hotrod.configuration.HotRodServerConfiguration;
 import org.infinispan.server.hotrod.configuration.HotRodServerConfigurationBuilder;
+import org.infinispan.server.router.RoutingTable;
+import org.infinispan.server.router.configuration.SinglePortRouterConfiguration;
+import org.infinispan.server.router.router.impl.singleport.SinglePortEndpointRouter;
+import org.infinispan.server.router.routes.singleport.SinglePortRouteSource;
+import org.infinispan.server.router.routes.Route;
+import org.infinispan.server.router.routes.RouteSource;
+import org.infinispan.server.router.routes.RouteDestination;
+import org.infinispan.server.router.routes.hotrod.HotRodServerRouteDestination;
+import org.infinispan.server.router.routes.rest.RestServerRouteDestination;
+import org.infinispan.server.configuration.endpoint.SinglePortServerConfigurationBuilder;
+import org.infinispan.rest.RestServer;
 import org.junit.rules.ExternalResource;
 import org.keycloak.Config;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.keycloak.connections.infinispan.InfinispanConnectionProvider.ACTION_TOKEN_CACHE;
 import static org.keycloak.connections.infinispan.InfinispanConnectionProvider.CLIENT_SESSION_CACHE_NAME;
@@ -73,32 +86,26 @@ public class HotRodServerRule extends ExternalResource {
     }
 
     public void createHotRodMapStoreServer() {
-        //hotRodCacheManager = configureCacheManager("site-1", "infinispan/hotrod-jgroups-udp.xml", new ProtoStreamMarshaller());
         hotRodCacheManager = configureHotRodCacheManager("hotRod/infinispan.xml");
 
-        /*ConfigurationBuilder cfg = new ConfigurationBuilder();
-        cfg.encoding().mediaType(MediaType.APPLICATION_PROTOSTREAM_TYPE);
-        hotRodCacheManager.defineConfiguration("clients", cfg.build());*/
-
         HotRodServerConfigurationBuilder hotRodServerConfigurationBuilder = new HotRodServerConfigurationBuilder();
-        /*SimpleServerAuthenticationProvider sap = new SimpleServerAuthenticationProvider();
-        sap.addUser("admin", "realm", "password".toCharArray());
-        hotRodServerConfigurationBuilder.authentication()
-                .enable()
-                .serverAuthenticationProvider(sap)
-                .serverName("localhost")
-                .addAllowedMech("SCRAM-SHA-512");*/
+        hotRodServerConfigurationBuilder.startTransport(false);
         hotRodServer = new HotRodServer();
         hotRodServer.start(hotRodServerConfigurationBuilder.build(), hotRodCacheManager);
-    }
 
-    public void createHotRodRemoteCache() {
-        org.infinispan.client.hotrod.configuration.ConfigurationBuilder builder = new org.infinispan.client.hotrod.configuration.ConfigurationBuilder();
-        builder.addServer().host("127.0.0.1").port(11222);
-        builder.clientIntelligence(ClientIntelligence.BASIC);
-        //.security().authentication().enable().saslMechanism("SCRAM-SHA-512").serverName("localhost").realm("realm").username("admin").password("password");
-        remoteCacheManager = new RemoteCacheManager(builder.build());
-        remoteCacheManager.getCache("clients");
+        RestServerConfigurationBuilder restServerConfigurationBuilder = new RestServerConfigurationBuilder();
+        restServerConfigurationBuilder.startTransport(false);
+        RestServer restServer = new RestServer();
+        restServer.start(restServerConfigurationBuilder.build(), hotRodCacheManager);
+
+        SinglePortRouteSource routeSource = new SinglePortRouteSource();
+        Set<Route<? extends RouteSource, ? extends RouteDestination>> routes = new HashSet<>();
+        routes.add(new Route<>(routeSource, new HotRodServerRouteDestination("hotrod", hotRodServer)));
+        routes.add(new Route<>(routeSource, new RestServerRouteDestination("rest", restServer)));
+
+        SinglePortRouterConfiguration singlePortRouter = new SinglePortServerConfigurationBuilder().build();
+        SinglePortEndpointRouter endpointServer = new SinglePortEndpointRouter(singlePortRouter);
+        endpointServer.start(new RoutingTable(routes));
     }
 
     private DefaultCacheManager configureHotRodCacheManager(String configPath) {

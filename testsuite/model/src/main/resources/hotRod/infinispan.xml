@@ -1,13 +1,9 @@
 <infinispan>
     <cache-container>
-        <transport stack="udp" cluster="site-1" site="site-1" node-name="node-1"/>
-
-        <serialization marshaller="org.infinispan.client.hotrod.marshall.ProtoStreamMarshaller"/>
+        <transport stack="udp"/>
 
         <distributed-cache name="clients" mode="SYNC">
             <encoding media-type="application/x-protostream"/>
-            <locking isolation="REPEATABLE_READ"/>
-            <transaction mode="NON_XA"/>
         </distributed-cache>
     </cache-container>
 </infinispan>

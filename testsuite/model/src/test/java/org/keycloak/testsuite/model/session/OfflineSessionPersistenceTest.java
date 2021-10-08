@@ -138,9 +138,6 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
               .collect(Collectors.toList());
         });
 
-        // Shutdown factory -> enforce session persistence
-        closeKeycloakSessionFactory();
-
         Map<String, List<String>> clientSessionIds = new ConcurrentHashMap<>();
         inIndependentFactories(3, 30, () -> {
             withRealm(realmId, (session, realm) -> {
@@ -159,7 +156,6 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
             });
         });
 
-        reinitializeKeycloakSessionFactory();
         inIndependentFactories(4, 30, () -> assertOfflineSessionsExist(realmId, clientSessionIds.keySet()));
     }
 
@@ -172,9 +168,6 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
               .collect(Collectors.toList());
         });
         List<String> offlineSessionIds = createOfflineSessions(realmId, userIds);
-
-        // Shutdown factory -> enforce session persistence
-        closeKeycloakSessionFactory();
 
         Map<String, List<String>> clientSessionIds = new ConcurrentHashMap<>();
         AtomicInteger i = new AtomicInteger();
@@ -285,9 +278,6 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
     public void testPersistenceClientSessionsMultipleNodes() throws InterruptedException {
         // Create offline sessions
         List<String> offlineSessionIds = createOfflineSessions(realmId, userIds);
-
-        // Shutdown factory -> enforce session persistence
-        closeKeycloakSessionFactory();
 
         inIndependentFactories(4, 30, () -> assertOfflineSessionsExist(realmId, offlineSessionIds));
     }

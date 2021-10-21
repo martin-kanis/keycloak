@@ -22,6 +22,7 @@ import org.infinispan.client.hotrod.RemoteCache;
 import org.junit.Assert;
 import org.junit.Test;
 import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
+import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
 import org.keycloak.models.KeycloakSession;
@@ -39,9 +40,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import org.keycloak.models.sessions.infinispan.stream.UserSessionPredicate;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.testsuite.model.HotRodServerRule;
 import org.keycloak.testsuite.model.KeycloakModelTest;
 import org.keycloak.testsuite.model.RequireProvider;
@@ -63,6 +69,11 @@ import static org.keycloak.connections.infinispan.InfinispanConnectionProvider.U
 public class UserSessionInitializerTest extends KeycloakModelTest {
 
     private String realmId;
+    private List<String> userIds;
+    private List<String> userSessionIds = new LinkedList<>();
+
+    private static final int USER_COUNT = 1000;
+    private static final int SESSION_COUNT_PER_USER = 10;
 
     @Override
     public void createEnvironment(KeycloakSession s) {
@@ -75,6 +86,11 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
 
         s.users().addUser(realm, "user1").setEmail("user1@localhost");
         s.users().addUser(realm, "user2").setEmail("user2@localhost");
+
+        userIds = IntStream.range(0, USER_COUNT)
+                .mapToObj(i -> s.users().addUser(realm, KeycloakModelUtils.generateId(), "user-" + i, false, false))
+                .map(UserModel::getId)
+                .collect(Collectors.toList());
 
         UserSessionPersisterProviderTest.createClients(s, realm);
     }
@@ -197,6 +213,35 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
         assertThat(containsSession.get().size(), is(size));
     }
 
+    @Test
+    @RequireProvider(value = UserSessionProvider.class, only = InfinispanUserSessionProviderFactory.PROVIDER_ID)
+    public void testSessionLoadingFromRemoteCaches() throws InterruptedException {
+        createSessions(realmId, userIds);
+
+        closeKeycloakSessionFactory();
+
+        long start = System.currentTimeMillis();
+        AtomicLong sessionCount = new AtomicLong(0);
+        inIndependentFactories(3, 300, () -> {
+            withRealm(realmId, (session, realm) -> {
+                    userSessionIds.forEach(id -> {
+                        UserSessionModel userSession = session.sessions().getUserSession(realm, id);
+                        if (userSession != null)
+                            sessionCount.incrementAndGet();
+                    });
+                    //long count = session.sessions().getUserSessionsStream(realm, user).count();
+                    //sessionCount.addAndGet(count);
+
+                return null;
+            });
+        });
+
+        long end = System.currentTimeMillis();
+
+        System.out.println(sessionCount.get());
+        System.out.println("Took: " +  (end - start) / 1000 + " seconds");
+    }
+
     // Create sessions in persister + infinispan, but then delete them from infinispan cache by reinitializing keycloak session factory
     private UserSessionModel[] createSessionsInPersisterOnly() {
         UserSessionModel[] origSessions = inComittedTransaction(session -> { return UserSessionPersisterProviderTest.createSessions(session, realmId); });
@@ -228,6 +273,28 @@ public class UserSessionInitializerTest extends KeycloakModelTest {
             }
         }
         Assert.fail("Session with ID " + id + " not found in the list");
+    }
+
+    private void createSessions(String realmId, List<String> userIds) {
+        withRealm(realmId, (session, realm) -> {
+            IntStream.range(0, SESSION_COUNT_PER_USER).forEach(index ->
+                userIds.stream()
+                        .map(userId -> createUserSession(session, realm, userId, index))
+                        .peek(userSessionModel -> userSessionIds.add(userSessionModel.getId()))
+                        .forEach(userSession -> createClientSession(session, realm, index % 2 == 0 ? "test-app" : "third-party", userSession))
+            );
+            return null;
+        });
+    }
+
+    private UserSessionModel createUserSession(KeycloakSession session, RealmModel realm, String userId, int sessionIndex) {
+        final UserModel user = session.users().getUserById(realm, userId);
+        return session.sessions().createUserSession(realm, user, "un" + sessionIndex, "ip1", "auth", false, null, null);
+    }
+
+    private AuthenticatedClientSessionModel createClientSession(KeycloakSession session, RealmModel realm, String clientId, UserSessionModel userSession) {
+        ClientModel client = session.clients().getClientByClientId(realm, clientId);
+        return session.sessions().createClientSession(realm, client, userSession);
     }
 }
 

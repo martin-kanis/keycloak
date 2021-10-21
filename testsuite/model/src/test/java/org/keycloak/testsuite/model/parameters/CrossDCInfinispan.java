@@ -18,6 +18,7 @@ package org.keycloak.testsuite.model.parameters;
 
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.keycloak.models.UserSessionSpi;
 import org.keycloak.testsuite.model.Config;
 import org.keycloak.testsuite.model.KeycloakModelParameters;
 import org.keycloak.testsuite.model.HotRodServerRule;
@@ -55,6 +56,7 @@ public class CrossDCInfinispan extends KeycloakModelParameters {
                     .config("siteName", siteName(NODE_COUNTER.get()))
                     .config("remoteStorePort", siteName(NODE_COUNTER.get()).equals("site-2") ? "11333" : "11222")
                     .config("jgroupsUdpMcastAddr", mcastAddr(NODE_COUNTER.get()));
+            //cf.spi(UserSessionSpi.NAME).provider("infinispan").config("sessionsPerSegment", "1024");
         }
     }
 

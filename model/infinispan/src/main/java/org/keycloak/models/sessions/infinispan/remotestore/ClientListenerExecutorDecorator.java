@@ -96,7 +96,7 @@ public class ClientListenerExecutorDecorator<K> {
 
     // Assume it's called from the synchronized block
     private void submitImpl(K key, MyClientEvent event, Runnable r) {
-        logger.debugf("Submitting event to the executor: %s . eventsInProgress size: %d, eventsQueue size: %d", event.toString(), eventsInProgress.size(), eventsQueue.size());
+        //logger.debugf("Submitting event to the executor: %s . eventsInProgress size: %d, eventsQueue size: %d", event.toString(), eventsInProgress.size(), eventsQueue.size());
 
         eventsInProgress.put(key, event);
 
@@ -114,7 +114,7 @@ public class ClientListenerExecutorDecorator<K> {
 
                     if (logger.isDebugEnabled()) {
                         long took = Time.currentTimeMillis() - start;
-                        logger.debugf("Finished processing event by the executor: %s, took: %d ms. EventsInProgress size: %d", event.toString(), took, eventsInProgress.size());
+                        //logger.debugf("Finished processing event by the executor: %s, took: %d ms. EventsInProgress size: %d", event.toString(), took, eventsInProgress.size());
                     }
 
                     pollQueue(key);

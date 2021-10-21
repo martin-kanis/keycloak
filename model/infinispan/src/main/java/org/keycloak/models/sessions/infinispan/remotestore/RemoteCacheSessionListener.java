@@ -130,7 +130,7 @@ public class RemoteCacheSessionListener<K, V extends SessionEntity>  {
         V remoteSession = remoteSessionVersioned.getValue().getEntity();
         SessionEntityWrapper<V> newWrapper = new SessionEntityWrapper<>(remoteSession);
 
-        logger.debugf("Read session entity wrapper from the remote cache: %s", remoteSession);
+        //logger.debugf("Read session entity wrapper from the remote cache: %s", remoteSession);
 
         KeycloakModelUtils.runJobInTransaction(sessionFactory, (session -> {
 
@@ -180,7 +180,7 @@ public class RemoteCacheSessionListener<K, V extends SessionEntity>  {
             }
             SessionEntity remoteSession = remoteSessionVersioned.getValue().getEntity();
 
-            logger.debugf("Read session entity from the remote cache: %s . replaceRetries=%d", remoteSession, replaceRetries);
+            //logger.debugf("Read session entity from the remote cache: %s . replaceRetries=%d", remoteSession, replaceRetries);
 
             SessionEntityWrapper<V> sessionWrapper = remoteSession.mergeRemoteEntityWithLocalEntity(localEntityWrapper);
 
@@ -235,7 +235,7 @@ public class RemoteCacheSessionListener<K, V extends SessionEntity>  {
             result = topologyInfo.amIOwner(cache, key);
         }
 
-        logger.debugf("Received event from remote store. Event '%s', key '%s', skip '%b'", type, key, !result);
+        //logger.debugf("Received event from remote store. Event '%s', key '%s', skip '%b'", type, key, !result);
 
         return result;
     }

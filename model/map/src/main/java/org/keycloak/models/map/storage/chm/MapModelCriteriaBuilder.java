@@ -18,6 +18,7 @@ package org.keycloak.models.map.storage.chm;
 
 import org.keycloak.models.map.common.StringKeyConvertor;
 import org.keycloak.models.map.common.AbstractEntity;
+import org.keycloak.models.map.storage.criteria.DefaultModelCriteria;
 import org.keycloak.storage.SearchableModelField;
 import java.util.Map;
 import java.util.function.Function;
@@ -93,12 +94,10 @@ public class MapModelCriteriaBuilder<K, V extends AbstractEntity, M> implements 
     @SuppressWarnings("unchecked")
     @Override
     public MapModelCriteriaBuilder<K, V, M> not(ModelCriteriaBuilder<M> builder) {
-        MapModelCriteriaBuilder<K, V, M> b = builder.unwrap(MapModelCriteriaBuilder.class);
-        if (b == null) {
-            throw new ClassCastException("Incompatible class: " + builder.getClass());
-        }
-        Predicate<? super K> resIndexFilter = b.getKeyFilter() == ALWAYS_TRUE ? ALWAYS_TRUE : b.getKeyFilter().negate();
-        Predicate<? super V> resEntityFilter = b.getEntityFilter() == ALWAYS_TRUE ? ALWAYS_TRUE : b.getEntityFilter().negate();
+        DefaultModelCriteria<M> criteria = (DefaultModelCriteria<M>) builder;
+        MapModelCriteriaBuilder<K,V,M> mcb = (MapModelCriteriaBuilder<K,V,M>) criteria.flashToModelCriteriaBuilder(new MapModelCriteriaBuilder<>(keyConvertor, fieldPredicates));
+        Predicate<? super K> resIndexFilter = mcb.getKeyFilter() == ALWAYS_TRUE ? ALWAYS_TRUE : mcb.getKeyFilter().negate();
+        Predicate<? super V> resEntityFilter = mcb.getEntityFilter() == ALWAYS_TRUE ? ALWAYS_TRUE : mcb.getEntityFilter().negate();
 
         return new MapModelCriteriaBuilder<>(
           keyConvertor,

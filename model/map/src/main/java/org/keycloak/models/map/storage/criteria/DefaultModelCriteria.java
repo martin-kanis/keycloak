@@ -144,6 +144,9 @@ public class DefaultModelCriteria<M> implements ModelCriteriaBuilder<M> {
      * @return Updated {@code ModelCriteriaBuilder}
      */
     public <C extends ModelCriteriaBuilder<M>> C flashToModelCriteriaBuilder(C mcb) {
+        if (isEmpty()) {
+            return mcb;
+        }
         return mcb == null ? null : node.flashToModelCriteriaBuilder(mcb);
     }
 

@@ -17,16 +17,20 @@
 
 package org.keycloak.models.map.storage.hotRod.client;
 
+import org.infinispan.protostream.annotations.ProtoDoc;
 import org.infinispan.protostream.annotations.ProtoField;
 
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
+@ProtoDoc("@Indexed")
 public class HotRodAttributeEntity {
+    @ProtoDoc("@Field(index = Index.YES, store = Store.YES)")
     @ProtoField(number = 1)
     public String name;
 
+    @ProtoDoc("@Field(index = Index.YES, store = Store.YES)")
     @ProtoField(number = 2)
     public List<String> values = new LinkedList<>();
 

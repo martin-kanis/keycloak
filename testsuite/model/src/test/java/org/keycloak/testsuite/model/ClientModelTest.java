@@ -18,6 +18,7 @@ package org.keycloak.testsuite.model;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -31,6 +32,11 @@ import org.keycloak.models.RealmProvider;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.RoleProvider;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
+
 /**
  *
  * @author rmartinc
@@ -41,6 +47,8 @@ import org.keycloak.models.RoleProvider;
 public class ClientModelTest extends KeycloakModelTest {
 
     private String realmId;
+
+    private static final String searchClientId = "My ClIeNt WITH sP%Ces and sp*ci_l Ch***cters \" ?!";
 
     @Override
     public void createEnvironment(KeycloakSession s) {
@@ -58,6 +66,12 @@ public class ClientModelTest extends KeycloakModelTest {
     public void testClientsBasics() {
         // Create client
         ClientModel originalModel = withRealm(realmId, (session, realm) -> session.clients().addClient(realm, "myClientId"));
+        ClientModel searchClient = withRealm(realmId, (session, realm) -> {
+            ClientModel client = session.clients().addClient(realm, searchClientId);
+            client.setAlwaysDisplayInConsole(true);
+            client.addRedirectUri("http://www.redirecturi.com");
+            return client;
+        });
         assertThat(originalModel.getId(), notNullValue());
 
         // Find by id
@@ -74,6 +88,47 @@ public class ClientModelTest extends KeycloakModelTest {
             assertThat(model, notNullValue());
             assertThat(model.getId(), is(equalTo(originalModel.getId())));
             assertThat(model.getClientId(), is(equalTo("myClientId")));
+        }
+
+        // Search by clientId
+        {
+            AtomicReference<String> id = new AtomicReference<>();
+            AtomicReference<String> clientId = new AtomicReference<>();
+
+            withRealm(realmId, (session, realm) -> {
+                getClientIds(session.clients().searchClientsByClientIdStream(realm, "client with", 0, 10), id, clientId);
+                return null;
+            });
+            assertThat(id.get(), is(equalTo(searchClient.getId())));
+            assertThat(clientId.get(), is(equalTo(searchClientId)));
+
+            withRealm(realmId, (session, realm) -> {
+                getClientIds(session.clients().searchClientsByClientIdStream(realm, "sp*ci_l Ch***cters", 0, 10), id, clientId);
+                return null;
+            });
+            assertThat(id.get(), is(equalTo(searchClient.getId())));
+            assertThat(clientId.get(), is(equalTo(searchClientId)));
+
+            withRealm(realmId, (session, realm) -> {
+                getClientIds(session.clients().searchClientsByClientIdStream(realm, " AND ", 0, 10), id, clientId);
+                return null;
+            });
+            assertThat(id.get(), is(equalTo(searchClient.getId())));
+            assertThat(clientId.get(), is(equalTo(searchClientId)));
+
+            withRealm(realmId, (session, realm) -> {
+                getClientIds(session.clients().searchClientsByClientIdStream(realm, "%", 0, 10), id, clientId);
+                return null;
+            });
+            assertThat(id.get(), is(equalTo(searchClient.getId())));
+            assertThat(clientId.get(), is(equalTo(searchClientId)));
+        }
+
+        // using Boolean operand
+        {
+            Map<ClientModel, Set<String>> allRedirectUrisOfEnabledClients = withRealm(realmId, (session, realm) -> session.clients().getAllRedirectUrisOfEnabledClients(realm));
+            assertThat(allRedirectUrisOfEnabledClients.values(), hasSize(1));
+            assertThat(allRedirectUrisOfEnabledClients.keySet().iterator().next().getId(), is(equalTo(searchClient.getId())));
         }
 
         // Test storing flow binding override
@@ -157,5 +212,16 @@ public class ClientModelTest extends KeycloakModelTest {
             session.clients().removeClient(realm, client2.getId());
             return null;
         });
+    }
+
+    private void getClientIds(Stream<ClientModel> clients, AtomicReference<String> id, AtomicReference<String> clientId) {
+        ClientModel client = clients.findFirst().orElse(null);
+        if (client != null) {
+            id.set(client.getId());
+            clientId.set(client.getClientId());
+        } else {
+            id.set(null);
+            clientId.set(null);
+        }
     }
 }

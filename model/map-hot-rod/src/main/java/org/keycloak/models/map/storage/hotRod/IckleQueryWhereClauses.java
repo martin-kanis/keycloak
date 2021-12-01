@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.keycloak.models.map.storage.hotRod.IckleQueryMapModelCriteriaBuilder.sanitizeValues;
+
 /**
  * This class provides knowledge on how to build Ickle query where clauses for specified {@link SearchableModelField}.
  *
@@ -71,8 +73,10 @@ public class IckleQueryWhereClauses {
      */
     public static String produceWhereClause(SearchableModelField<?> modelField, ModelCriteriaBuilder.Operator op,
                                             Object[] values, Map<String, Object> parameters) {
-        return whereClauseProducerForModelField(modelField)
-                .produceWhereClause(IckleQueryMapModelCriteriaBuilder.getFieldName(modelField), op, values, parameters);
+        SearchableModelField<?> modelFieldOverride = IckleQueryMapModelCriteriaBuilder.getModelFieldOverride(modelField, op);
+
+        return whereClauseProducerForModelField(modelFieldOverride)
+                .produceWhereClause(IckleQueryMapModelCriteriaBuilder.getFieldName(modelFieldOverride), op, sanitizeValues(modelFieldOverride, values), parameters);
     }
 
     private static String whereClauseForClientsAttributes(String modelFieldName, ModelCriteriaBuilder.Operator op, Object[] values, Map<String, Object> parameters) {

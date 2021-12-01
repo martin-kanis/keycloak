@@ -156,6 +156,9 @@ public class IckleQueryOperators {
             String namedParameter = findAvailableNamedParam(parameters.keySet(), modelFieldName);
             parameters.put(namedParameter, values[0]);
 
+            if (IckleQueryMapModelCriteriaBuilder.isAnalyzedModelField(modelFieldName)) {
+                return C + "." + modelFieldName + " : '" + values[0] + "'" ;
+            }
             return C + "." + modelFieldName + " " + IckleQueryOperators.operatorToString(op) + " :" + namedParameter;
         };
     }

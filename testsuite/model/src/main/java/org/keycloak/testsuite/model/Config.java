@@ -127,7 +127,7 @@ public class Config implements ConfigProvider {
             if (v == null || v.isEmpty()) {
                 v = System.getProperty("keycloak." + prefix + key, defaultValue);
             }
-            return v != null && ! v.isEmpty() ? v : null;
+            return v != null && ! v.isEmpty() ? v : defaultValue;
         }
 
         @Override

@@ -383,6 +383,9 @@ public class DefaultInfinispanConnectionProviderFactory implements InfinispanCon
     private void configureRemoteCacheStore(ConfigurationBuilder builder, boolean async, String cacheName) {
         String jdgServer = config.get("remoteStoreHost", "localhost");
         Integer jdgPort = config.getInt("remoteStorePort", 11222);
+        // After upgrade to Infinispan 12.1.7.Final it's required that both remote store and embedded cache use
+        // the same key media type to allow segmentation. Also, the number of segments in an embedded cache needs to match number of segments in the remote store.
+        boolean segmented = config.getBoolean("segmented", false);
 
         builder.persistence()
                 .passivation(false)
@@ -393,6 +396,7 @@ public class DefaultInfinispanConnectionProviderFactory implements InfinispanCon
                 .preload(false)
                 .shared(true)
                 .remoteCacheName(cacheName)
+                .segmented(segmented)
                 .rawValues(true)
                 .forceReturnValues(false)
                 .marshaller(KeycloakHotRodMarshallerFactory.class.getName())
@@ -407,6 +411,9 @@ public class DefaultInfinispanConnectionProviderFactory implements InfinispanCon
     private void configureRemoteActionTokenCacheStore(ConfigurationBuilder builder, boolean async) {
         String jdgServer = config.get("remoteStoreHost", "localhost");
         Integer jdgPort = config.getInt("remoteStorePort", 11222);
+        // After upgrade to Infinispan 12.1.7.Final it's required that both remote store and embedded cache use
+        // the same key media type to allow segmentation. Also, the number of segments in an embedded cache needs to match number of segments in the remote store.
+        boolean segmented = config.getBoolean("segmented", false);
 
         builder.persistence()
                 .passivation(false)
@@ -419,6 +426,7 @@ public class DefaultInfinispanConnectionProviderFactory implements InfinispanCon
                     .remoteCacheName(InfinispanConnectionProvider.ACTION_TOKEN_CACHE)
                     .rawValues(true)
                     .forceReturnValues(false)
+                    .segmented(segmented)
                     .marshaller(KeycloakHotRodMarshallerFactory.class.getName())
                     .protocolVersion(getHotrodVersion())
                     .addServer()

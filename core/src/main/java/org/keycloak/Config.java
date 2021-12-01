@@ -91,7 +91,7 @@ public class Config {
         @Override
         public String get(String key, String defaultValue) {
             String v = System.getProperty(prefix + key, defaultValue);
-            return v != null && !v.isEmpty() ? v : null;
+            return v != null && !v.isEmpty() ? v : defaultValue;
         }
 
         @Override

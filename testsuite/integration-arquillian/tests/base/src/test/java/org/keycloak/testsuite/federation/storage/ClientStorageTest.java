@@ -211,6 +211,16 @@ public class ClientStorageTest extends AbstractTestRealmKeycloakTest {
             }
         }
         Assert.assertTrue(hardTested && testAppTested);
+
+        testingClient.server().run(session -> {
+            RealmModel realm = session.realms().getRealmByName("test");
+            ClientModel hardcoded = realm.getClientByClientId("hardcoded-client");
+
+            long activeUserSessions = session.sessions().getActiveUserSessions(realm, hardcoded);
+            long offlineSessionsCount = session.sessions().getOfflineSessionsCount(realm, hardcoded);
+            Assert.assertEquals(3, activeUserSessions);
+            Assert.assertEquals(1, offlineSessionsCount);
+        });
     }
 
 

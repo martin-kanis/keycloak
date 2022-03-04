@@ -17,7 +17,9 @@
 
 package org.keycloak.models.map.storage.hotRod.common;
 
+import org.keycloak.models.map.authSession.MapAuthenticationSessionEntity;
 import org.keycloak.models.map.common.AbstractEntity;
+import org.keycloak.models.map.storage.hotRod.authSession.HotRodAuthenticationSessionEntity;
 import org.keycloak.models.map.storage.hotRod.user.HotRodUserConsentEntity;
 import org.keycloak.models.map.storage.hotRod.user.HotRodUserFederatedIdentityEntity;
 
@@ -109,5 +111,15 @@ public class HotRodTypesUtils {
 
     public static <T, V> Set<V> migrateSet(Set<T> p0, Function<T, V> migrator) {
         return p0 == null ? null : p0.stream().map(migrator).collect(Collectors.toSet());
+    }
+
+    public static HotRodAuthenticationSessionEntity createHotRodAuthenticationSessionEntityFromMapEntry(Map.Entry<String, MapAuthenticationSessionEntity> entry) {
+        HotRodAuthenticationSessionEntity hotRodAuthSessionEntity = ((HotRodEntityDelegate<HotRodAuthenticationSessionEntity>) entry.getValue()).getHotRodEntity();
+        hotRodAuthSessionEntity.tabId = entry.getKey();
+        return hotRodAuthSessionEntity;
+    }
+
+    public static String getKey(HotRodAuthenticationSessionEntity hotRodAuthenticationSessionEntity) {
+        return hotRodAuthenticationSessionEntity.tabId;
     }
 }

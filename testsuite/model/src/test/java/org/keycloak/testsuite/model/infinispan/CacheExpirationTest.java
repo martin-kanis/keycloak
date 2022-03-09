@@ -19,8 +19,14 @@ package org.keycloak.testsuite.model.infinispan;
 import org.infinispan.Cache;
 import org.junit.Assume;
 import org.junit.Test;
+import org.keycloak.common.util.Time;
 import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
+import org.keycloak.models.Constants;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.cache.infinispan.events.AuthenticationSessionAuthNoteUpdateEvent;
+import org.keycloak.models.sessions.infinispan.changes.SessionEntityWrapper;
+import org.keycloak.models.sessions.infinispan.entities.UserSessionEntity;
 import org.keycloak.testsuite.model.KeycloakModelTest;
 import org.keycloak.testsuite.model.RequireProvider;
 
@@ -30,6 +36,7 @@ import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -38,6 +45,8 @@ import java.util.regex.Pattern;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeThat;
 
 
@@ -49,6 +58,18 @@ import static org.junit.Assume.assumeThat;
 public class CacheExpirationTest extends KeycloakModelTest {
 
     public static final int NUM_EXTRA_FACTORIES = 4;
+
+    private String realmId;
+
+    @Override
+    public void createEnvironment(KeycloakSession s) {
+        RealmModel realm = s.realms().createRealm("test");
+        realm.setDefaultRole(s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
+
+        this.realmId = realm.getId();
+
+        s.users().addUser(realm, "user1").setEmail("user1@localhost");
+    }
 
     @Test
     public void testCacheExpiration() throws Exception {
@@ -120,6 +141,37 @@ public class CacheExpirationTest extends KeycloakModelTest {
 
             });
         });
+    }
+
+    @Test(timeout = 60000)
+    public void testSessionCacheExpiration() {
+        withRealm(realmId, (session, realm)-> {
+            InfinispanConnectionProvider provider = session.getProvider(InfinispanConnectionProvider.class);
+            Cache<String, SessionEntityWrapper<UserSessionEntity>> cache = provider.getCache(InfinispanConnectionProvider.USER_SESSION_CACHE_NAME);
+            cache.clear();
+
+            UserSessionEntity userSessionEntity = new UserSessionEntity();
+            userSessionEntity.setId(UUID.randomUUID().toString());
+            userSessionEntity.setRealmId(realmId);
+            userSessionEntity.setUser("user1");
+            userSessionEntity.setLoginUsername("user1");
+            userSessionEntity.setIpAddress("123.44.143.178");
+            userSessionEntity.setStarted(Time.currentTime());
+            userSessionEntity.setLastSessionRefresh(Time.currentTime());
+
+            SessionEntityWrapper<UserSessionEntity> wrappedSession = new SessionEntityWrapper<>(userSessionEntity);
+            cache.put(userSessionEntity.getId(), wrappedSession, 20000, TimeUnit.MILLISECONDS);
+            return null;
+        });
+
+        assumeThat("jmap output format unsupported", getNumberOfInstancesOfClass(SessionEntityWrapper.class), notNullValue());
+        assertEquals( 1, (int) getNumberOfInstancesOfClass(SessionEntityWrapper.class));
+
+        do {
+            try { Thread.sleep(1000); } catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new RuntimeException(ex); }
+        } while (getNumberOfInstancesOfClass(SessionEntityWrapper.class) != 0);
+
+        fail("Cannot reproduce. The user session entity was garbage collected.");
     }
 
     private static final Pattern JMAP_HOTSPOT_PATTERN = Pattern.compile("\\s*\\d+:\\s+(\\d+)\\s+(\\d+)\\s+(\\S+)\\s*");

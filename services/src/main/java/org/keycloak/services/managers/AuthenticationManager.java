@@ -1573,5 +1573,4 @@ public class AuthenticationManager {
 
         return null;
     }
-
 }

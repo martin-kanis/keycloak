@@ -53,6 +53,9 @@ public class HotRodRootAuthenticationSessionEntity extends AbstractHotRodEntity 
     public Integer timestamp;
 
     @ProtoField(number = 5)
+    public Long expiration;
+
+    @ProtoField(number = 6)
     public Set<HotRodAuthenticationSessionEntity> authenticationSessions;
 
     public static abstract class AbstractHotRodRootAuthenticationSessionEntityDelegate extends UpdatableHotRodEntityDelegateImpl<HotRodRootAuthenticationSessionEntity> implements MapRootAuthenticationSessionEntity {

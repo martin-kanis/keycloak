@@ -61,7 +61,7 @@ public class DistributedCacheConcurrentWritesTest {
 //        BasicCache<String, SessionEntityWrapper<UserSessionEntity>> cache2 = createRemoteCache("node2");
 
         try {
-            testConcurrentPut(cache1, cache2);
+            //testConcurrentPut(cache1, cache2);
         } finally {
 
             // Kill JVM
@@ -99,7 +99,7 @@ public class DistributedCacheConcurrentWritesTest {
 
 
     // Reproducer for KEYCLOAK-7443 and KEYCLOAK-7489. The infinite loop can happen if cache.replace(key, old, new) is called and entity was removed on one cluster node in the meantime
-    private static void testConcurrentPut(BasicCache<String, SessionEntityWrapper<UserSessionEntity>> cache1,
+    /*private static void testConcurrentPut(BasicCache<String, SessionEntityWrapper<UserSessionEntity>> cache1,
                                           BasicCache<String, SessionEntityWrapper<UserSessionEntity>> cache2) throws InterruptedException {
 
         // Create workers for concurrent write and start them
@@ -123,7 +123,7 @@ public class DistributedCacheConcurrentWritesTest {
 
         // JGroups statistics
         printStats(cache1);
-    }
+    }*/
 
 
     private static class Worker extends Thread {
@@ -233,7 +233,7 @@ public class DistributedCacheConcurrentWritesTest {
     }
 
 
-    private static void printStats(BasicCache cache) {
+    /*private static void printStats(BasicCache cache) {
         if (cache instanceof Cache) {
             Cache cache1 = (Cache) cache;
 
@@ -245,5 +245,5 @@ public class DistributedCacheConcurrentWritesTest {
             Map<String, String> stats = ((RemoteCache) cache).stats().getStatsMap();
             System.out.println("Stats: " + stats);
         }
-    }
+    }*/
 }

@@ -21,6 +21,7 @@ import org.infinispan.client.hotrod.RemoteCacheManager;
 import org.infinispan.client.hotrod.RemoteCacheManagerAdmin;
 import org.infinispan.client.hotrod.configuration.ClientIntelligence;
 import org.infinispan.client.hotrod.configuration.ConfigurationBuilder;
+import org.infinispan.client.hotrod.configuration.RemoteCacheConfiguration;
 import org.infinispan.commons.marshall.ProtoStreamMarshaller;
 import org.infinispan.protostream.GeneratedSchema;
 import org.infinispan.query.remote.client.ProtobufMetadataManagerConstants;
@@ -146,15 +147,17 @@ public class DefaultHotRodConnectionProviderFactory implements HotRodConnectionP
     }
 
     private void configureRemoteCaches(ConfigurationBuilder builder) {
-        URI uri;
-        try {
-            uri = DefaultHotRodConnectionProviderFactory.class.getClassLoader().getResource("config/cacheConfig.xml").toURI();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException("Cannot read the cache configuration!", e);
-        }
 
         HotRodMapStorageProviderFactory.ENTITY_DESCRIPTOR_MAP.values().stream()
                 .map(HotRodEntityDescriptor::getCacheName)
-                .forEach(name -> builder.remoteCache(name).configurationURI(uri));
+                .forEach(name -> {
+                    URI uri;
+                    try {
+                        uri = DefaultHotRodConnectionProviderFactory.class.getClassLoader().getResource("config/" + name + ".xml").toURI();
+                    } catch (URISyntaxException e) {
+                        throw new RuntimeException("Cannot read the cache configuration!", e);
+                    }
+                    builder.remoteCache(name).configurationURI(uri).create();
+                });
     }
 }

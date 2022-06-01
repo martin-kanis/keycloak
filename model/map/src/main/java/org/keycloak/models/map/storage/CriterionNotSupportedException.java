@@ -33,9 +33,21 @@ public class CriterionNotSupportedException extends RuntimeException {
         this.op = op;
     }
 
+    public CriterionNotSupportedException(String fieldName, Operator op) {
+        super("Criterion not supported: operator: " + op + ", field: " + fieldName);
+        field = null;
+        this.op = op;
+    }
+
     public CriterionNotSupportedException(SearchableModelField field, Operator op, String message) {
         super(message);
         this.field = field;
+        this.op = op;
+    }
+
+    public CriterionNotSupportedException(String fieldName, Operator op, String message) {
+        super(message);
+        this.field = null;
         this.op = op;
     }
 

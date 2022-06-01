@@ -1,0 +1,9 @@
+<distributed-cache name="user-sessions" mode="SYNC">
+    <indexing>
+        <indexed-entities>
+            <indexed-entity>kc.HotRodUserSessionEntity</indexed-entity>
+            <indexed-entity>kc.HotRodStringPair</indexed-entity>
+        </indexed-entities>
+    </indexing>
+    <encoding media-type="application/x-protostream"/>
+</distributed-cache>

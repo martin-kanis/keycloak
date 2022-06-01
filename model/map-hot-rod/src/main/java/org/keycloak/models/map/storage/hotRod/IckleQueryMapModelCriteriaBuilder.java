@@ -89,16 +89,6 @@ public class IckleQueryMapModelCriteriaBuilder<E extends AbstractHotRodEntity, M
         INFINISPAN_NAME_OVERRIDES.put(Policy.SearchableFields.CONFIG, "configs");
     }
 
-    static {
-        // the "filename" analyzer in Infinispan works correctly for case-insensitive search with whitespaces
-        ANALYZED_MODEL_FIELDS.add(RoleModel.SearchableFields.DESCRIPTION);
-        ANALYZED_MODEL_FIELDS.add(UserModel.SearchableFields.FIRST_NAME);
-        ANALYZED_MODEL_FIELDS.add(UserModel.SearchableFields.LAST_NAME);
-        ANALYZED_MODEL_FIELDS.add(UserModel.SearchableFields.EMAIL);
-        ANALYZED_MODEL_FIELDS.add(Policy.SearchableFields.TYPE);
-        ANALYZED_MODEL_FIELDS.add(Resource.SearchableFields.TYPE);
-    }
-
     public IckleQueryMapModelCriteriaBuilder(Class<E> hotRodEntityClass, StringBuilder whereClauseBuilder, Map<String, Object> parameters) {
         this.hotRodEntityClass = hotRodEntityClass;
         this.whereClauseBuilder.append(whereClauseBuilder);
@@ -263,10 +253,6 @@ public class IckleQueryMapModelCriteriaBuilder<E extends AbstractHotRodEntity, M
         }
 
         return value;
-    }
-
-    public static boolean isAnalyzedModelField(SearchableModelField<?> modelField) {
-        return ANALYZED_MODEL_FIELDS.contains(modelField);
     }
 
     /**

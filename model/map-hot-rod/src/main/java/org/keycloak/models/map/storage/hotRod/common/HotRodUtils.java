@@ -70,7 +70,7 @@ public class HotRodUtils {
 
         SinglePortRouterConfiguration singlePortRouter = new SinglePortServerConfigurationBuilder().port(embeddedPort).build();
         SinglePortEndpointRouter endpointServer = new SinglePortEndpointRouter(singlePortRouter);
-        endpointServer.start(new RoutingTable(routes));
+        endpointServer.start(new RoutingTable(routes), hotRodCacheManager);
     }
 
     /**

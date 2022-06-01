@@ -1,0 +1,8 @@
+<distributed-cache name="groups" mode="SYNC">
+    <indexing>
+        <indexed-entities>
+            <indexed-entity>kc.HotRodGroupEntity</indexed-entity>
+        </indexed-entities>
+    </indexing>
+    <encoding media-type="application/x-protostream"/>
+</distributed-cache>

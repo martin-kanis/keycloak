@@ -1,0 +1,8 @@
+<distributed-cache name="client-scopes" mode="SYNC">
+    <indexing>
+        <indexed-entities>
+            <indexed-entity>kc.HotRodClientScopeEntity</indexed-entity>
+        </indexed-entities>
+    </indexing>
+    <encoding media-type="application/x-protostream"/>
+</distributed-cache>

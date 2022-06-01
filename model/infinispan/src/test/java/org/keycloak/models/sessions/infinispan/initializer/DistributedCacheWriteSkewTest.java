@@ -54,7 +54,7 @@ public class DistributedCacheWriteSkewTest {
     private static final UUID CLIENT_1_UUID = UUID.randomUUID();
 
     public static void main(String[] args) throws Exception {
-        Cache<String, UserSessionEntity> cache1 = createManager("node1").getCache(InfinispanConnectionProvider.USER_SESSION_CACHE_NAME);
+        /*Cache<String, UserSessionEntity> cache1 = createManager("node1").getCache(InfinispanConnectionProvider.USER_SESSION_CACHE_NAME);
         Cache<String, UserSessionEntity> cache2 = createManager("node2").getCache(InfinispanConnectionProvider.USER_SESSION_CACHE_NAME);
 
         // Create initial item
@@ -109,7 +109,7 @@ public class DistributedCacheWriteSkewTest {
         cache1.getCacheManager().stop();
         cache2.getCacheManager().stop();
 
-        System.out.println("Managers killed");
+        System.out.println("Managers killed");*/
     }
 
 

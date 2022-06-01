@@ -1,0 +1,8 @@
+<distributed-cache name="user-login-failures" mode="SYNC">
+    <indexing>
+        <indexed-entities>
+            <indexed-entity>kc.HotRodUserLoginFailureEntity</indexed-entity>
+        </indexed-entities>
+    </indexing>
+    <encoding media-type="application/x-protostream"/>
+</distributed-cache>

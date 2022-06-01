@@ -21,7 +21,7 @@ import org.infinispan.commons.util.ByRef;
 import org.infinispan.commons.util.EnumUtil;
 import org.infinispan.commons.util.IntSet;
 import org.infinispan.commons.util.IntSets;
-import org.infinispan.commons.util.Util;
+import org.infinispan.commons.util.concurrent.CompletableFutures;
 import org.infinispan.configuration.cache.AbstractSegmentedStoreConfiguration;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.StoreConfiguration;
@@ -70,7 +70,6 @@ import org.infinispan.persistence.support.SingleSegmentPublisher;
 import org.infinispan.transaction.impl.AbstractCacheTransaction;
 import org.infinispan.util.concurrent.AggregateCompletionStage;
 import org.infinispan.util.concurrent.BlockingManager;
-import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.concurrent.CompletionStages;
 import org.infinispan.util.concurrent.NonBlockingManager;
 import org.infinispan.util.logging.Log;
@@ -449,40 +448,15 @@ public class PersistenceManagerImpl implements PersistenceManager {
    }
 
    @Override
-   public boolean isPreloaded() {
-      return preloaded;
+   public boolean hasStore(Predicate<StoreConfiguration> test) {
+      return false;
    }
 
    @Override
-   public CompletionStage<Void> preload() {
-      long stamp = acquireReadLock();
-      NonBlockingStore<Object, Object> nonBlockingStore = getStoreLocked(status -> status.config.preload());
-      if (nonBlockingStore == null) {
-         releaseReadLock(stamp);
-         return CompletableFutures.completedNull();
-      }
-      Publisher<MarshallableEntry<Object, Object>> publisher = nonBlockingStore.publishEntries(
-            IntSets.immutableRangeSet(segmentCount), null, true);
-
-      long start = timeService.time();
-
-      final long maxEntries = getMaxEntries();
-      final long flags = getFlagsForStateInsertion();
-      AdvancedCache<?,?> tmpCache = this.cache.wired().withStorageMediaType();
-      DataConversion keyDataConversion = tmpCache.getKeyDataConversion();
-      DataConversion valueDataConversion = tmpCache.getValueDataConversion();
-
-      return Flowable.fromPublisher(publisher)
-            .doFinally(() -> releaseReadLock(stamp))
-            .take(maxEntries)
-            .concatMapSingle(me -> preloadEntry(flags, me, keyDataConversion, valueDataConversion))
-            .count()
-            .toCompletionStage()
-            .thenAccept(insertAmount -> {
-               this.preloaded = insertAmount < maxEntries;
-               log.debugf("Preloaded %d keys in %s", insertAmount, Util.prettyPrintTime(timeService.timeDuration(start, MILLISECONDS)));
-            });
+   public Flowable<MarshallableEntry<Object, Object>> preloadPublisher() {
+      return null;
    }
+
 
    private Single<Object> preloadEntry(long flags, MarshallableEntry<Object, Object> me, DataConversion keyDataConversion, DataConversion valueDataConversion) {
       // CallInterceptor will preserve the timestamps if the metadata is an InternalMetadataImpl instance
@@ -657,6 +631,21 @@ public class PersistenceManagerImpl implements PersistenceManager {
          }
       }
       return aggregateCompletionStage.freeze();
+   }
+
+   @Override
+   public CompletionStage<Void> addStore(StoreConfiguration storeConfiguration) {
+      return null;
+   }
+
+   @Override
+   public void addStoreListener(StoreChangeListener listener) {
+
+   }
+
+   @Override
+   public void removeStoreListener(StoreChangeListener listener) {
+
    }
 
    private <K, V> NonBlockingStore<K, V> unwrapStore(NonBlockingStore<K, V> store) {
@@ -869,6 +858,11 @@ public class PersistenceManagerImpl implements PersistenceManager {
       ).toCompletionStage(null);
    }
 
+   @Override
+   public CompletionStage<Long> approximateSize(Predicate<? super StoreConfiguration> predicate, IntSet segments) {
+      return null;
+   }
+
    private boolean allowLoad(StoreStatus storeStatus, boolean localInvocation, boolean includeStores) {
       return !storeStatus.characteristics.contains(Characteristic.WRITE_ONLY) && (localInvocation || !isLocalOnlyLoader(storeStatus.store)) &&
             (includeStores || storeStatus.characteristics.contains(Characteristic.READ_ONLY) || storeStatus.config.ignoreModifications());
@@ -906,28 +900,6 @@ public class PersistenceManagerImpl implements PersistenceManager {
             return CompletableFuture.completedFuture(-1L);
          }
          return nonBlockingStore.size(IntSets.immutableRangeSet(segmentCount))
-               .whenComplete((ignore, ignoreT) -> releaseReadLock(stamp));
-      } catch (Throwable t) {
-         releaseReadLock(stamp);
-         throw t;
-      }
-   }
-
-   @Override
-   public CompletionStage<Long> size(IntSet segments) {
-      long stamp = acquireReadLock();
-      try {
-         checkStoreAvailability();
-         if (log.isTraceEnabled()) {
-            log.tracef("Obtaining size from stores for segments %s", segments);
-         }
-         NonBlockingStore<?, ?> nonBlockingStore = getStoreLocked(storeStatus -> storeStatus.characteristics.contains(
-               Characteristic.BULK_READ));
-         if (nonBlockingStore == null) {
-            releaseReadLock(stamp);
-            return CompletableFuture.completedFuture(-1L);
-         }
-         return nonBlockingStore.size(segments)
                .whenComplete((ignore, ignoreT) -> releaseReadLock(stamp));
       } catch (Throwable t) {
          releaseReadLock(stamp);

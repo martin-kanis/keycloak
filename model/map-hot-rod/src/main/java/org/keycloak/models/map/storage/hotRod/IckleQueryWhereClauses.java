@@ -18,7 +18,9 @@
 package org.keycloak.models.map.storage.hotRod;
 
 import org.keycloak.authorization.model.Policy;
+import org.keycloak.authorization.model.Resource;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.map.storage.CriterionNotSupportedException;
@@ -31,8 +33,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.keycloak.models.map.storage.hotRod.IckleQueryMapModelCriteriaBuilder.getFieldName;
-import static org.keycloak.models.map.storage.hotRod.IckleQueryMapModelCriteriaBuilder.sanitizeAnalyzed;
 import static org.keycloak.models.map.storage.hotRod.IckleQueryOperators.C;
+import static org.keycloak.models.map.storage.hotRod.IckleQueryOperators.findAvailableNamedParam;
 
 /**
  * This class provides knowledge on how to build Ickle query where clauses for specified {@link SearchableModelField}.
@@ -58,6 +60,15 @@ public class IckleQueryWhereClauses {
         WHERE_CLAUSE_PRODUCER_OVERRIDES.put(UserModel.SearchableFields.CONSENT_CLIENT_FEDERATION_LINK, IckleQueryWhereClauses::whereClauseForConsentClientFederationLink);
         WHERE_CLAUSE_PRODUCER_OVERRIDES.put(UserSessionModel.SearchableFields.CORRESPONDING_SESSION_ID, IckleQueryWhereClauses::whereClauseForCorrespondingSessionId);
         WHERE_CLAUSE_PRODUCER_OVERRIDES.put(Policy.SearchableFields.CONFIG, IckleQueryWhereClauses::whereClauseForPolicyConfig);
+
+        // analyzed fields
+        // the "filename" analyzer in Infinispan works correctly for case-insensitive search with whitespaces
+        WHERE_CLAUSE_PRODUCER_OVERRIDES.put(RoleModel.SearchableFields.DESCRIPTION, IckleQueryWhereClauses::whereClauseForAnalyzedField);
+        WHERE_CLAUSE_PRODUCER_OVERRIDES.put(UserModel.SearchableFields.FIRST_NAME, IckleQueryWhereClauses::whereClauseForAnalyzedField);
+        WHERE_CLAUSE_PRODUCER_OVERRIDES.put(UserModel.SearchableFields.LAST_NAME, IckleQueryWhereClauses::whereClauseForAnalyzedField);
+        WHERE_CLAUSE_PRODUCER_OVERRIDES.put(UserModel.SearchableFields.EMAIL, IckleQueryWhereClauses::whereClauseForAnalyzedField);
+        WHERE_CLAUSE_PRODUCER_OVERRIDES.put(Policy.SearchableFields.TYPE, IckleQueryWhereClauses::whereClauseForAnalyzedField);
+        WHERE_CLAUSE_PRODUCER_OVERRIDES.put(Resource.SearchableFields.TYPE, IckleQueryWhereClauses::whereClauseForAnalyzedField);
     }
 
     @FunctionalInterface
@@ -85,18 +96,6 @@ public class IckleQueryWhereClauses {
     public static String produceWhereClause(SearchableModelField<?> modelField, ModelCriteriaBuilder.Operator op,
                                             Object[] values, Map<String, Object> parameters) {
         String fieldName = IckleQueryMapModelCriteriaBuilder.getFieldName(modelField);
-
-        if (IckleQueryMapModelCriteriaBuilder.isAnalyzedModelField(modelField) &&
-                (op.equals(ModelCriteriaBuilder.Operator.ILIKE) || op.equals(ModelCriteriaBuilder.Operator.EQ) || op.equals(ModelCriteriaBuilder.Operator.NE))) {
-
-            String clause = C + "." + fieldName + " : '" + sanitizeAnalyzed(((String)values[0]).toLowerCase()) + "'";
-            if (op.equals(ModelCriteriaBuilder.Operator.NE)) {
-                return "not(" + clause + ")";
-            }
-
-            return clause;
-        }
-
         return whereClauseProducerForModelField(modelField).produceWhereClause(fieldName, op, values, parameters);
     }
 
@@ -203,5 +202,26 @@ public class IckleQueryWhereClauses {
 
         String valueClause = IckleQueryOperators.combineExpressions(op, modelFieldName + ".value", realValues, parameters);
         return "(" + nameClause + ")" + " AND " + "(" + valueClause + ")";
+    }
+
+    private static String whereClauseForAnalyzedField(String modelFieldName, ModelCriteriaBuilder.Operator op, Object[] values, Map<String, Object> parameters) {
+        if (op != ModelCriteriaBuilder.Operator.LIKE && op != ModelCriteriaBuilder.Operator.ILIKE &&
+                op != ModelCriteriaBuilder.Operator.EQ && op != ModelCriteriaBuilder.Operator.NE) {
+            throw new CriterionNotSupportedException(modelFieldName, op);
+        }
+        if (values == null || values.length != 1) {
+            throw new CriterionNotSupportedException(modelFieldName, op, "Invalid number of arguments, expected 1, got: " + (values == null ? 0 : values.length));
+        }
+
+        String sanitizedValue = (String) IckleQueryMapModelCriteriaBuilder.sanitizeAnalyzed(values[0]);
+        String namedParameter = findAvailableNamedParam(parameters.keySet(), modelFieldName);
+        parameters.put(namedParameter, sanitizedValue);
+
+        String clause = C + "." + modelFieldName + " : :" + namedParameter;
+
+        if (op.equals(ModelCriteriaBuilder.Operator.NE)) {
+            return "not(" + clause + ")";
+        }
+        return clause;
     }
 }

@@ -349,13 +349,6 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
         CountDownLatch afterFirstNodeLatch = new CountDownLatch(1);
 
         inIndependentFactories(2, 60, () -> {
-            if (index.incrementAndGet() == 1) {
-                createOfflineSessions("user1", 10, offlineUserSessions, offlineClientSessions);
-
-                afterFirstNodeLatch.countDown();
-            }
-            awaitLatch(afterFirstNodeLatch);
-
             log.debug("Joining the cluster");
             inComittedTransaction(session -> {
                 InfinispanConnectionProvider provider = session.getProvider(InfinispanConnectionProvider.class);
@@ -366,6 +359,13 @@ public class UserSessionProviderOfflineModelTest extends KeycloakModelTest {
                 cache.keySet().forEach(s -> {});
             });
             log.debug("Cluster joined");
+
+            if (index.incrementAndGet() == 1) {
+                createOfflineSessions("user1", 10, offlineUserSessions, offlineClientSessions);
+
+                afterFirstNodeLatch.countDown();
+            }
+            awaitLatch(afterFirstNodeLatch);
 
             withRealm(realmId, (session, realm) -> {
                 final UserModel user = session.users().getUserByUsername(realm, "user1");

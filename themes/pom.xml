@@ -97,13 +97,13 @@
                         <artifactId>frontend-maven-plugin</artifactId>
                         <executions>
                             <!-- Download NPM tools -->
-                            <execution>
+                            <!-- <execution>
                                 <id>setup-node</id>
                                 <goals>
                                     <goal>install-node-and-npm</goal>
                                 </goals>
                                 <phase>initialize</phase>
-                            </execution>
+                            </execution>-->
                             <!-- Compile stuff -->
                             <execution>
                                 <id>compile-account2</id>
@@ -162,13 +162,13 @@
                         <artifactId>frontend-maven-plugin</artifactId>
                         <executions>
                             <!-- Download NPM tools -->
-                            <execution>
+<!--                            <execution>
                                 <id>setup-node</id>
                                 <goals>
                                     <goal>install-node-and-npm</goal>
                                 </goals>
                                 <phase>initialize</phase>
-                            </execution>
+                            </execution>-->
                             <!-- Download NPM packages -->
                             <execution>
                                 <id>npm-install-common</id>

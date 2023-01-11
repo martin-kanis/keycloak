@@ -39,6 +39,7 @@ import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.UserSessionProvider;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.SessionTimeoutHelper;
 import org.keycloak.protocol.oidc.OIDCConfigAttributes;
@@ -59,6 +60,7 @@ import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.updaters.ClientAttributeUpdater;
 import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
 import org.keycloak.testsuite.util.AdminClientUtil;
+import org.keycloak.testsuite.util.ClientBuilder;
 import org.keycloak.testsuite.util.ClientManager;
 import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.RealmBuilder;
@@ -70,6 +72,7 @@ import org.keycloak.testsuite.util.UserManager;
 import org.keycloak.testsuite.util.WaitUtils;
 import org.keycloak.util.BasicAuthHelper;
 import org.keycloak.util.JsonSerialization;
+import org.keycloak.util.TokenUtil;
 import org.openqa.selenium.Cookie;
 
 import javax.ws.rs.client.Client;
@@ -95,11 +98,14 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.keycloak.connections.infinispan.InfinispanConnectionProvider.OFFLINE_CLIENT_SESSION_CACHE_NAME;
+import static org.keycloak.connections.infinispan.InfinispanConnectionProvider.OFFLINE_USER_SESSION_CACHE_NAME;
 import static org.keycloak.protocol.oidc.OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT;
 import static org.keycloak.protocol.oidc.OIDCConfigAttributes.CLIENT_SESSION_MAX_LIFESPAN;
 import static org.keycloak.testsuite.Assert.assertExpiration;
 import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
 import static org.keycloak.testsuite.admin.ApiUtil.findUserByUsername;
+import static org.keycloak.testsuite.util.OAuthClient.APP_ROOT;
 import static org.keycloak.testsuite.util.OAuthClient.AUTH_SERVER_ROOT;
 import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_SSL_REQUIRED;
 
@@ -109,6 +115,8 @@ import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_SSL_REQUIRED;
 public class RefreshTokenTest extends AbstractKeycloakTest {
 
     public static final int ALLOWED_CLOCK_SKEW = 3;
+
+    String offlineClientAppUri = APP_ROOT + "/offline-client";
 
     @Page
     protected LoginPage loginPage;
@@ -140,6 +148,17 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
 
         RealmBuilder realm = RealmBuilder.edit(realmRepresentation)
                 .testEventListener();
+
+        ClientRepresentation app = ClientBuilder.create().clientId("offline-client")
+                .id(KeycloakModelUtils.generateId())
+                .adminUrl(offlineClientAppUri)
+                .redirectUris(offlineClientAppUri)
+                .directAccessGrants()
+                .serviceAccountsEnabled(true)
+                .attribute(OIDCConfigAttributes.USE_REFRESH_TOKEN_FOR_CLIENT_CREDENTIALS_GRANT, "true")
+                .secret("secret1").build();
+
+        realm.client(app);
 
         testRealms.add(realm.build());
 
@@ -556,6 +575,81 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
 
             events.expectRefresh(newTokenFirstReuse.getId(), sessionId).removeDetail(Details.TOKEN_ID)
                     .removeDetail(Details.UPDATED_REFRESH_TOKEN_ID).error("invalid_token").assertEvent();
+        } finally {
+            RealmManager.realm(adminClient.realm("test"))
+                    .refreshTokenMaxReuse(0)
+                    .revokeRefreshToken(false);
+        }
+    }
+
+    @Test
+    public void refreshTokenReuseTokenWithOfflineSession() throws Exception {
+        try {
+            RealmManager.realm(adminClient.realm("test"))
+                    .revokeRefreshToken(true)
+                    .refreshTokenMaxReuse(1);
+
+            oauth.scope(OAuth2Constants.OFFLINE_ACCESS);
+            oauth.clientId("offline-client");
+            oauth.redirectUri(offlineClientAppUri);
+            oauth.doLogin("test-user@localhost", "password");
+
+            EventRepresentation loginEvent = events.expectLogin()
+                    .client("offline-client")
+                    .detail(Details.REDIRECT_URI, offlineClientAppUri)
+                    .assertEvent();
+
+            final String sessionId = loginEvent.getSessionId();
+            String codeId = loginEvent.getDetails().get(Details.CODE_ID);
+
+            String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+            OAuthClient.AccessTokenResponse initialResponse = oauth.doAccessTokenRequest(code, "secret1");
+            RefreshToken initialRefreshToken = oauth.parseRefreshToken(initialResponse.getRefreshToken());
+
+            events.expectCodeToToken(codeId, sessionId)
+                    .client("offline-client")
+                    .detail(Details.REFRESH_TOKEN_TYPE, TokenUtil.TOKEN_TYPE_OFFLINE)
+                    .assertEvent();
+
+            // Initial refresh.
+            OAuthClient.AccessTokenResponse responseFirstUse = oauth.doRefreshTokenRequest(initialResponse.getRefreshToken(), "secret1");
+
+            assertEquals(200, responseFirstUse.getStatusCode());
+
+            events.expectRefresh(initialRefreshToken.getId(), sessionId)
+                    .client("offline-client")
+                    .detail(Details.REFRESH_TOKEN_TYPE, TokenUtil.TOKEN_TYPE_OFFLINE)
+                    .assertEvent();
+
+            // Second refresh (allowed).
+            OAuthClient.AccessTokenResponse responseFirstReuse = oauth.doRefreshTokenRequest(initialResponse.getRefreshToken(), "secret1");
+
+            assertEquals(200, responseFirstReuse.getStatusCode());
+
+            events.expectRefresh(initialRefreshToken.getId(), sessionId)
+                    .client("offline-client")
+                    .detail(Details.REFRESH_TOKEN_TYPE, TokenUtil.TOKEN_TYPE_OFFLINE)
+                    .assertEvent();
+
+            if (testingClient.server().fetchString(s -> s.getKeycloakSessionFactory().getProviderFactory(UserSessionProvider.class).getId()).equals("\"infinispan\"")) {
+                // clear offline caches to simulate server restart
+                testingClient.testing().cache(OFFLINE_USER_SESSION_CACHE_NAME).clear();
+                testingClient.testing().cache(OFFLINE_CLIENT_SESSION_CACHE_NAME).clear();
+            }
+
+            // Token reused twice, became invalid. But token refresh reuse count is lost in a DB therefore token can be still reused
+            OAuthClient.AccessTokenResponse responseSecondReuse = oauth.doRefreshTokenRequest(initialResponse.getRefreshToken(), "secret1");
+
+            // token refresh will pass but it shouldn't
+            assertEquals(400, responseSecondReuse.getStatusCode());
+
+            events.expectRefresh(initialRefreshToken.getId(), sessionId)
+                    .client("offline-client")
+                    .detail(Details.REFRESH_TOKEN_TYPE, TokenUtil.TOKEN_TYPE_OFFLINE)
+                    .removeDetail(Details.TOKEN_ID)
+                    .removeDetail(Details.UPDATED_REFRESH_TOKEN_ID)
+                    .error("invalid_token").assertEvent();
         } finally {
             RealmManager.realm(adminClient.realm("test"))
                     .refreshTokenMaxReuse(0)

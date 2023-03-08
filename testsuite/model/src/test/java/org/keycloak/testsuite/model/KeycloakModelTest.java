@@ -30,8 +30,6 @@ import org.keycloak.common.profile.PropertiesProfileConfigResolver;
 import org.keycloak.common.util.Time;
 import org.keycloak.component.ComponentFactoryProviderFactory;
 import org.keycloak.component.ComponentFactorySpi;
-import org.keycloak.device.DeviceRepresentationProviderFactoryImpl;
-import org.keycloak.device.DeviceRepresentationSpi;
 import org.keycloak.events.EventStoreSpi;
 import org.keycloak.executors.DefaultExecutorsProviderFactory;
 import org.keycloak.executors.ExecutorsSpi;
@@ -314,41 +312,53 @@ public abstract class KeycloakModelTest {
 
         LOG.debugf("Creating factory %d in %s using the following configuration:\n    %s", factoryIndex, threadName, CONFIG);
 
-        DefaultKeycloakSessionFactory res = new DefaultKeycloakSessionFactory() {
+        for (int i = 0; i < 10; ++i) {
+            try {
+                DefaultKeycloakSessionFactory res = new DefaultKeycloakSessionFactory() {
 
-            @Override
-            public void init() {
-                Profile.configure(new PropertiesProfileConfigResolver(System.getProperties()));
-                super.init();
-            }
+                    @Override
+                    public void init() {
+                        Profile.configure(new PropertiesProfileConfigResolver(System.getProperties()));
+                        super.init();
+                    }
 
-            @Override
-            protected boolean isEnabled(ProviderFactory factory, Scope scope) {
-                return super.isEnabled(factory, scope) && isFactoryAllowed(factory);
-            }
+                    @Override
+                    protected boolean isEnabled(ProviderFactory factory, Scope scope) {
+                        return super.isEnabled(factory, scope) && isFactoryAllowed(factory);
+                    }
 
-            @Override
-            protected Map<Class<? extends Provider>, Map<String, ProviderFactory>> loadFactories(ProviderManager pm) {
-                spis.removeIf(s -> ! isSpiAllowed(s));
-                return super.loadFactories(pm);
-            }
+                    @Override
+                    protected Map<Class<? extends Provider>, Map<String, ProviderFactory>> loadFactories(ProviderManager pm) {
+                        spis.removeIf(s -> !isSpiAllowed(s));
+                        return super.loadFactories(pm);
+                    }
 
-            private boolean isSpiAllowed(Spi s) {
-                return MODEL_PARAMETERS.stream().anyMatch(p -> p.isSpiAllowed(s));
-            }
+                    private boolean isSpiAllowed(Spi s) {
+                        return MODEL_PARAMETERS.stream().anyMatch(p -> p.isSpiAllowed(s));
+                    }
 
-            private boolean isFactoryAllowed(ProviderFactory factory) {
-                return MODEL_PARAMETERS.stream().anyMatch(p -> p.isFactoryAllowed(factory));
-            }
+                    private boolean isFactoryAllowed(ProviderFactory factory) {
+                        return MODEL_PARAMETERS.stream().anyMatch(p -> p.isFactoryAllowed(factory));
+                    }
 
-            @Override
-            public String toString() {
-                return "KeycloakSessionFactory " + factoryIndex + " (from " + threadName + " thread)";
+                    @Override
+                    public String toString() {
+                        return "KeycloakSessionFactory " + factoryIndex + " (from " + threadName + " thread)";
+                    }
+                };
+                try {
+                    res.init();
+                    res.publish(new PostMigrationEvent(res));
+                    return res;
+                } catch (RuntimeException ex) {
+                    res.close();
+                    throw ex;
+                }
+            } catch (org.infinispan.util.concurrent.TimeoutException ex) {
+                LOG.warn("Failed to create factory after an Infinispan timeout", ex);
             }
-        };
-        res.init();
-        res.publish(new PostMigrationEvent(res));
-        return res;
+        }
+        throw new RuntimeException("All retries to create the session factory failed");
     }
 
     /**

@@ -8,6 +8,7 @@ GeneratedRsaKeyProviderTest
 KcOidcBrokerTest
 LDAPUserLoginTest
 LoginTest
+OfflineTokenTest
 PasswordPolicyTest
 RefreshTokenTest
 RequiredActionUpdateProfileTest

@@ -89,7 +89,12 @@ public class LDAPTestUtils {
 
     public static LDAPObject addLDAPUser(LDAPStorageProvider ldapProvider, RealmModel realm, final String username,
                                          final String firstName, final String lastName, final String email, final String street, final String... postalCode) {
-        UserModel helperUser = new UserModelDelegate(null) {
+        UserModel helperUser = createUserDelegate(username, firstName, lastName, email, street, postalCode);
+        return LDAPUtils.addUserToLDAP(ldapProvider, realm, helperUser);
+    }
+
+    public static UserModel createUserDelegate(final String username, final String firstName, final String lastName, final String email, final String street, final String... postalCode) {
+        return new UserModelDelegate(null) {
 
             @Override
             public String getUsername() {
@@ -144,7 +149,6 @@ public class LDAPTestUtils {
                 }
             }
         };
-        return LDAPUtils.addUserToLDAP(ldapProvider, realm, helperUser);
     }
 
     public static LDAPObject addLdapOU(LDAPStorageProvider ldapProvider, String name) {

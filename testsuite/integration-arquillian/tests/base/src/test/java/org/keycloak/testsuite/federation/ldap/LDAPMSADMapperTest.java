@@ -18,6 +18,9 @@
 package org.keycloak.testsuite.federation.ldap;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.hamcrest.Matchers;
 import org.jboss.arquillian.graphene.page.Page;
@@ -27,6 +30,7 @@ import org.junit.FixMethodOrder;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
+import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.models.LDAPConstants;
 import org.keycloak.models.RealmModel;
@@ -34,16 +38,19 @@ import org.keycloak.models.UserModel;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.ldap.LDAPStorageProvider;
+import org.keycloak.storage.ldap.LDAPUtils;
 import org.keycloak.storage.ldap.idm.model.LDAPObject;
 import org.keycloak.storage.ldap.mappers.msad.UserAccountControl;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.pages.AppPage;
 import org.keycloak.testsuite.pages.LoginPasswordUpdatePage;
+import org.keycloak.testsuite.util.AccountHelper;
 import org.keycloak.testsuite.util.LDAPRule;
 import org.keycloak.testsuite.util.LDAPTestConfiguration;
 import org.keycloak.testsuite.util.LDAPTestUtils;
 
 import static org.junit.Assert.assertFalse;
+import static org.keycloak.testsuite.util.LDAPTestUtils.createUserDelegate;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -79,6 +86,14 @@ public class LDAPMSADMapperTest extends AbstractLDAPTest {
             // Delete all LDAP users and add some new for testing
             LDAPStorageProvider ldapFedProvider = LDAPTestUtils.getLdapProvider(session, ctx.getLdapModel());
             LDAPTestUtils.removeAllLDAPUsers(ldapFedProvider, appRealm);
+
+            UserModel helperUser = createUserDelegate("jondoe", "firstName", "lastName", "jondoe@email.org", null, "1234");
+            LDAPObject jondoe = LDAPUtils.addUserToLDAP(ldapFedProvider, appRealm, helperUser, ldapObject -> {
+                ldapObject.setSingleAttribute(LDAPConstants.CN, "Foo, Jon Doe");
+                ldapObject.setSingleAttribute(LDAPConstants.GIVENNAME, "Jon");
+                ldapObject.setSingleAttribute(LDAPConstants.SN, "Foo");
+            });
+            LDAPTestUtils.updateLDAPPassword(ldapFedProvider, jondoe, "Password1");
 
             LDAPObject john = LDAPTestUtils.addLDAPUser(ldapFedProvider, appRealm, "johnkeycloak", "John", "Doe", "john@email.org", null, "1234");
             LDAPTestUtils.updateLDAPPassword(ldapFedProvider, john, "Password1");
@@ -129,6 +144,21 @@ public class LDAPMSADMapperTest extends AbstractLDAPTest {
         });
     }
 
+    @Test
+    public void testFirstNameTest() {
+        loginPage.open();
+        // when LDAPConstants.CN is set, we use it username
+        loginPage.login("Foo, Jon Doe", "Password1");
+
+        Assert.assertEquals(AppPage.RequestType.AUTH_RESPONSE, appPage.getRequestType());
+        Assert.assertNotNull(oauth.getCurrentQuery().get(OAuth2Constants.CODE));
+
+        UserRepresentation userRepresentation = AccountHelper.getUserRepresentation(testRealm(), "Foo, Jon Doe");
+
+        Assert.assertEquals("Jon", userRepresentation.getFirstName());
+        Assert.assertEquals("Foo", userRepresentation.getLastName());
+        Assert.assertEquals("jondoe@email.org", userRepresentation.getEmail());
+    }
 
     @Test
     public void test02UpdatePasswordTest() {

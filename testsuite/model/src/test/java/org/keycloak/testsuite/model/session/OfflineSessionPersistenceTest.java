@@ -16,8 +16,10 @@
  */
 package org.keycloak.testsuite.model.session;
 
+import org.infinispan.Cache;
 import org.infinispan.client.hotrod.RemoteCache;
 import org.infinispan.commons.CacheException;
+import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
@@ -38,6 +40,7 @@ import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProviderFact
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.testsuite.model.KeycloakModelTest;
 import org.keycloak.testsuite.model.RequireProvider;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -275,6 +278,17 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
                     // otherwise seen CacheInitializer#loadSessions to loop sleeping
                     synchronized (OfflineSessionPersistenceTest.class) {
                         reinitializeKeycloakSessionFactory();
+                        inComittedTransaction(session -> {
+                            InfinispanConnectionProvider provider = session.getProvider(InfinispanConnectionProvider.class);
+                            Cache cache = provider.getCache(InfinispanConnectionProvider.OFFLINE_USER_SESSION_CACHE_NAME);
+
+                            log.debug("Waiting for caches to join the cluster after restart");
+                            do {
+                                sleep(250);
+                            } while (! cache.getAdvancedCache().getDistributionManager().isJoinComplete());
+
+                            log.debug("Cluster joined after restart");
+                        });
                     }
                 }
             }

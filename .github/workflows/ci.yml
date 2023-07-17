@@ -341,20 +341,16 @@ jobs:
     name: Set check conclusion
     needs:
       - unit-tests
-      - base-integration-tests
-      - quarkus-integration-tests
-      - jdk-integration-tests
-      - new-store-integration-tests
-      - legacy-store-integration-tests
       - store-model-tests
-      - clustering-integration-tests
-      - fips-unit-tests
-      - fips-integration-tests
-      - account-console-integration-tests
-      - forms-integration-tests
-      - webauthn-integration-tests
-      - sssd-unit-tests
-      - migration-tests
+      - store-model-tests2
+      - store-model-tests3
+      - store-model-tests4
+      - store-model-tests5
+      - store-model-tests6
+      - store-model-tests7
+      - store-model-tests8
+      - store-model-tests9
+      - store-model-tests10
     runs-on: ubuntu-latest
     outputs:
       conclusion: ${{ steps.check.outputs.conclusion }}

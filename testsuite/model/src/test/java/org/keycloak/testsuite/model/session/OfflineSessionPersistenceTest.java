@@ -372,6 +372,24 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
     private String createOfflineClientSession(String offlineUserSessionId, String clientId) {
         return withRealm(realmId, (session, realm) -> {
             UserSessionModel offlineUserSession = session.sessions().getOfflineUserSession(realm, offlineUserSessionId);
+            if (offlineUserSession == null) {
+                log.error("Offline user session not found while creating a client session");
+                UserSessionPersisterProvider provider = session.getProvider(UserSessionPersisterProvider.class);
+                if (provider != null) {
+                    UserSessionModel userSessionModel = provider.loadUserSession(realm, offlineUserSessionId, true);
+                    if (userSessionModel != null) {
+                        log.error("Offline user session found in persister on second attempt");
+                        UserSessionModel offlineUserSession1 = session.sessions().getOfflineUserSession(realm, offlineUserSessionId);
+                        if (offlineUserSession1 != null)
+                            log.error("Offline user session found and imported as third attempt");
+                        else
+                            log.error("Offline user session found in persister but was not imported");
+                    }
+                    else
+                        log.error("Offline user session NOT found in persister on second attempt");
+                }
+
+            }
             ClientModel client = session.clients().getClientById(realm, clientId);
             AuthenticatedClientSessionModel clientSession = session.sessions().createClientSession(realm, client, offlineUserSession);
             return session.sessions().createOfflineClientSession(clientSession, offlineUserSession).getId();

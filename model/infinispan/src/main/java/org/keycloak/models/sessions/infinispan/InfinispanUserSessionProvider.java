@@ -291,8 +291,30 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
             return null;
         }
 
+        // try to import the user session into the cache
         UserSessionEntity sessionEntity = importUserSession(realm, offline, persistentUserSession);
         if (sessionEntity == null) {
+            // for some reason the user session couldn't be imported into the cache
+            // check the expiration and if the entry is not expired return it directly from the persister
+            /*UserSessionEntity userSessionEntityInstance = createUserSessionEntityInstance(persistentUserSession);
+            SessionFunction<UserSessionEntity> lifespanChecker = SessionTimeouts::getOfflineSessionLifespanMs;
+            SessionFunction<UserSessionEntity> idleTimeoutChecker = SessionTimeouts::getOfflineSessionMaxIdleMs;
+            if (idleTimeoutChecker.apply(realm, null, userSessionEntityInstance) == SessionTimeouts.ENTRY_EXPIRED_FLAG
+                    || lifespanChecker.apply(realm, null, userSessionEntityInstance) == SessionTimeouts.ENTRY_EXPIRED_FLAG) {
+                return null;
+            }
+            for (Map.Entry<String, AuthenticatedClientSessionModel> entry : persistentUserSession.getAuthenticatedClientSessions().entrySet()) {
+                String clientUUID = entry.getKey();
+                AuthenticatedClientSessionModel clientSession = entry.getValue();
+                AuthenticatedClientSessionEntity clientSessionToImport = createAuthenticatedClientSessionInstance(clientSession, realm.getId(), clientUUID, offline);
+
+                // Update timestamp to same value as userSession. LastSessionRefresh of userSession from DB will have correct value
+                clientSessionToImport.setTimestamp(userSessionEntityInstance.getLastSessionRefresh());
+
+                // Update userSession entity with the clientSession
+                AuthenticatedClientSessionStore clientSessions = userSessionEntityToImport.getAuthenticatedClientSessions();
+                clientSessions.put(clientUUID, clientSessionToImport.getId());
+            }*/
             persister.removeUserSession(sessionId, offline);
         }
 
@@ -983,8 +1005,8 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
             long lifespan = lifespanMsCalculator.apply(currentRealm, client, sessionEntity);
             long maxIdle = maxIdleTimeMsCalculator.apply(currentRealm, client, sessionEntity);
 
-            log.debugf("Lifespan of sessionId=%s to be imported to the cache %d ms", id, lifespan);
-            log.debugf("Max idle of sessionId=%s to be imported to the cache %d ms", id, maxIdle);
+            log.tracef("Lifespan of sessionId=%s to be imported to the cache %d ms", id, lifespan);
+            log.tracef("Max idle of sessionId=%s to be imported to the cache %d ms", id, maxIdle);
 
             if (lifespan != SessionTimeouts.ENTRY_EXPIRED_FLAG
                     && maxIdle != SessionTimeouts.ENTRY_EXPIRED_FLAG) {
@@ -1005,7 +1027,6 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
 
                     }, 10, 10);
                 } else {
-                    log.debugf("session=%s is about to be imported to the cache at %d time [s]", id, Time.currentTime());
                     cache.put(id, sessionEntityWrapper, lifespan, TimeUnit.MILLISECONDS, maxIdle, TimeUnit.MILLISECONDS);
                 }
             }

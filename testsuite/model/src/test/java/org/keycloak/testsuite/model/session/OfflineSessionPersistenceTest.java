@@ -90,6 +90,7 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
     private static RealmModel prepareRealm(KeycloakSession s, String name) {
         RealmModel realm = createRealm(s, name);
         realm.setDefaultRole(s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
+        realm.setOfflineSessionMaxLifespanEnabled(true);
         realm.setSsoSessionMaxLifespan(10 * 60 * 60);
         realm.setSsoSessionIdleTimeout(1 * 60 * 60);
         realm.setOfflineSessionMaxLifespan(365 * 24 * 60 * 60);
@@ -246,8 +247,8 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
 
         Map<String, List<String>> clientSessionIds = new ConcurrentHashMap<>();
         AtomicInteger i = new AtomicInteger();
-        inIndependentFactories(3, 60, () -> {
-            for (int j = 0; j < USER_COUNT * 3; j ++) {
+        inIndependentFactories(3, 120, () -> {
+            for (int j = 0; j < USER_COUNT * 6; j ++) {
                 int index = i.incrementAndGet();
                 int oid = index % offlineSessionIds.size();
                 String offlineSessionId = offlineSessionIds.get(oid);
@@ -270,7 +271,7 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
                 }
 
                 // re-initialize the session factory N times in this test
-                if (index % 100 == 0) {
+                if (index % 300 == 0) {
                     // don't re-initialize all caches at the same time to avoid an unstable cluster with no leader
                     // otherwise seen CacheInitializer#loadSessions to loop sleeping
                     synchronized (OfflineSessionPersistenceTest.class) {
@@ -372,24 +373,6 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
     private String createOfflineClientSession(String offlineUserSessionId, String clientId) {
         return withRealm(realmId, (session, realm) -> {
             UserSessionModel offlineUserSession = session.sessions().getOfflineUserSession(realm, offlineUserSessionId);
-            if (offlineUserSession == null) {
-                log.error("Offline user session not found while creating a client session");
-                UserSessionPersisterProvider provider = session.getProvider(UserSessionPersisterProvider.class);
-                if (provider != null) {
-                    UserSessionModel userSessionModel = provider.loadUserSession(realm, offlineUserSessionId, true);
-                    if (userSessionModel != null) {
-                        log.error("Offline user session found in persister on second attempt");
-                        UserSessionModel offlineUserSession1 = session.sessions().getOfflineUserSession(realm, offlineUserSessionId);
-                        if (offlineUserSession1 != null)
-                            log.error("Offline user session found and imported as third attempt");
-                        else
-                            log.error("Offline user session found in persister but was not imported");
-                    }
-                    else
-                        log.error("Offline user session NOT found in persister on second attempt");
-                }
-
-            }
             ClientModel client = session.clients().getClientById(realm, clientId);
             AuthenticatedClientSessionModel clientSession = session.sessions().createClientSession(realm, client, offlineUserSession);
             return session.sessions().createOfflineClientSession(clientSession, offlineUserSession).getId();

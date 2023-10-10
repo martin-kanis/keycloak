@@ -241,8 +241,8 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
             // increase session owners to 3 for the test
             // test restarts nodes in cluster, and from time to time, it can happen that both owners for a session are offline/initializing
             // therefore a session can be lost during import from the persister
-            System.setProperty(SESSIONS_OWNERS_SYSTEM_PROPERTY, "3");
-            reinitializeKeycloakSessionFactory();
+            //System.setProperty(SESSIONS_OWNERS_SYSTEM_PROPERTY, "3");
+            //reinitializeKeycloakSessionFactory();
 
             List<String> clientIds = withRealm(realmId, (session, realm) -> IntStream.range(0, 5)
                     .mapToObj(cid -> session.clients().addClient(realm, "client-" + cid))
@@ -279,7 +279,7 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
                     }
 
                     // re-initialize the session factory N times in this test
-                    if (index % 100 == 0) {
+                    if (index % 10 == 0) {
                         // don't re-initialize all caches at the same time to avoid an unstable cluster with no leader
                         // otherwise seen CacheInitializer#loadSessions to loop sleeping
                         synchronized (OfflineSessionPersistenceTest.class) {
@@ -292,7 +292,7 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
             reinitializeKeycloakSessionFactory();
             assertOfflineSessionsExist(realmId, offlineSessionIds);
         } finally {
-            System.setProperty(SESSIONS_OWNERS_SYSTEM_PROPERTY, "2");
+            //System.setProperty(SESSIONS_OWNERS_SYSTEM_PROPERTY, "2");
         }
     }
 

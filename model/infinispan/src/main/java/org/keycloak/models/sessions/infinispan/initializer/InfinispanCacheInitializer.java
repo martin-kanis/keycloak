@@ -23,6 +23,7 @@ import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.manager.ClusterExecutor;
 import org.infinispan.remoting.transport.Transport;
 import org.jboss.logging.Logger;
+import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.KeycloakSessionTask;
@@ -62,6 +63,12 @@ public class InfinispanCacheInitializer extends BaseCacheInitializer {
 
     @Override
     public void initCache() {
+        KeycloakModelUtils.runJobInTransaction(sessionFactory, session -> {
+            // This ensures that the caches are initialized before the sessions are loaded.
+            // During model testing, initializing from Infinispan's JGroups threads will not work due to Keycloak's configuration being thread dependent during model tests.
+            // When running in production, it is simpler to handle an initializing exception in the main thread than in a JGroup thread.
+            session.getProvider(InfinispanConnectionProvider.class);
+        });
         // due to lazy initialization, this might be called from multiple threads simultaneously, therefore, synchronize
         synchronized (workCache) {
             final ComponentRegistry cr = this.workCache.getAdvancedCache().getComponentRegistry();

@@ -588,6 +588,7 @@ public abstract class AbstractAdvancedBrokerTest extends AbstractBrokerTest {
             // Login with valid TOTP. I should not be able to login
             loginTotpPage.login(totp.generateTOTP(totpSecret));
             Assert.assertEquals("Invalid authenticator code.", loginTotpPage.getInputError());
+            WaitUtils.waitForPageToLoad();
 
             // Clear login failures
             realm.attackDetection().clearBruteForceForUser(user.getId());

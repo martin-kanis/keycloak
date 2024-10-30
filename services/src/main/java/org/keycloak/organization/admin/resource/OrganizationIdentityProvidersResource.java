@@ -70,7 +70,7 @@ public class OrganizationIdentityProvidersResource {
     }
 
     @POST
-    @Consumes(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.TEXT_PLAIN)
     @Tag(name = KeycloakOpenAPI.Admin.Tags.ORGANIZATIONS)
     @Operation(summary = "Adds the identity provider with the specified id to the organization",
         description = "Adds, or associates, an existing identity provider with the organization. If no identity provider is found, " +

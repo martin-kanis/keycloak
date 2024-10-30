@@ -85,7 +85,7 @@ public class OrganizationMemberResource {
     }
 
     @POST
-    @Consumes(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.TEXT_PLAIN)
     @Tag(name = KeycloakOpenAPI.Admin.Tags.ORGANIZATIONS)
     @Operation(summary = "Adds the user with the specified id as a member of the organization", description = "Adds, or associates, " +
             "an existing user with the organization. If no user is found, or if it is already associated with the organization, " +

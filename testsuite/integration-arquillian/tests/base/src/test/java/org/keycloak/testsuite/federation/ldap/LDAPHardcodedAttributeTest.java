@@ -18,13 +18,16 @@
 package org.keycloak.testsuite.federation.ldap;
 
 import org.keycloak.component.ComponentModel;
+import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.storage.UserStoragePrivateUtil;
 import org.keycloak.storage.ldap.LDAPStorageProvider;
 import org.keycloak.storage.ldap.mappers.HardcodedAttributeMapper;
 import org.keycloak.storage.ldap.mappers.HardcodedAttributeMapperFactory;
 import org.keycloak.storage.ldap.mappers.LDAPStorageMapper;
+import org.keycloak.storage.user.SynchronizationResult;
 import org.keycloak.testsuite.runonserver.RunOnServerException;
 import org.keycloak.testsuite.util.LDAPRule;
 import org.keycloak.testsuite.util.LDAPTestUtils;
@@ -104,6 +107,110 @@ public class LDAPHardcodedAttributeTest extends AbstractLDAPTest {
                 HardcodedAttributeMapper.USER_MODEL_ATTRIBUTE, "username",
                 HardcodedAttributeMapper.ATTRIBUTE_VALUE, "username");
          appRealm.addComponentModel(usernameMapperModel);
+      });
+   }
+
+   @Test
+   public void testHardcodedMapperFullSyncExistingUsers(){
+      // Step 1: Create users in LDAP without any hardcoded attribute mapper
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         RealmModel appRealm = ctx.getRealm();
+         LDAPStorageProvider ldapProvider = LDAPTestUtils.getLdapProvider(session, ctx.getLdapModel());
+
+         // Remove all users and add test users
+         LDAPTestUtils.removeAllLDAPUsers(ldapProvider, appRealm);
+         LDAPTestUtils.addLDAPUser(ldapProvider, appRealm, "user1", "User1", "LastName1", "user1@email.org", null, "1111");
+         LDAPTestUtils.addLDAPUser(ldapProvider, appRealm, "user2", "User2", "LastName2", "user2@email.org", null, "2222");
+      });
+
+      // Step 2: Sync users without hardcoded mapper - users should not have department attribute
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         KeycloakSessionFactory sessionFactory = session.getKeycloakSessionFactory();
+
+         SynchronizationResult syncResult = UserStoragePrivateUtil.runFullSync(sessionFactory, ctx.getLdapModel());
+         Assert.assertTrue("Sync should succeed", syncResult.getFailed() == 0);
+         Assert.assertEquals("Should sync 2 users", 2, syncResult.getAdded());
+      });
+
+      // Step 3: Verify users exist but don't have the department attribute yet
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         RealmModel appRealm = ctx.getRealm();
+
+         UserModel user1 = session.users().getUserByUsername(appRealm, "user1");
+         UserModel user2 = session.users().getUserByUsername(appRealm, "user2");
+         
+         Assert.assertNotNull("User1 should exist", user1);
+         Assert.assertNotNull("User2 should exist", user2);
+         Assert.assertNull("User1 should not have department yet", user1.getFirstAttribute("department"));
+         Assert.assertNull("User2 should not have department yet", user2.getFirstAttribute("department"));
+      });
+
+      // Step 4: Add hardcoded attribute mapper for department
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         RealmModel appRealm = ctx.getRealm();
+
+         ComponentModel departmentMapperModel = KeycloakModelUtils.createComponentModel("departmentMapper", 
+                 ctx.getLdapModel().getId(), 
+                 HardcodedAttributeMapperFactory.PROVIDER_ID, 
+                 LDAPStorageMapper.class.getName(),
+                 HardcodedAttributeMapper.USER_MODEL_ATTRIBUTE, "department",
+                 HardcodedAttributeMapper.ATTRIBUTE_VALUE, "Engineering");
+         
+         appRealm.addComponentModel(departmentMapperModel);
+      });
+
+      // Step 5: Run full sync again - existing users should now get the hardcoded attribute
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         KeycloakSessionFactory sessionFactory = session.getKeycloakSessionFactory();
+
+         SynchronizationResult syncResult = UserStoragePrivateUtil.runFullSync(sessionFactory, ctx.getLdapModel());
+         Assert.assertTrue("Second sync should succeed", syncResult.getFailed() == 0);
+         Assert.assertEquals("Should update 2 existing users", 2, syncResult.getUpdated());
+      });
+
+      // Step 6: Verify existing users now have the hardcoded department attribute PERSISTED in database
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         RealmModel appRealm = ctx.getRealm();
+
+         // Use userLocalStorage to bypass LDAP proxy and read directly from database
+         UserModel user1 = UserStoragePrivateUtil.userLocalStorage(session).getUserByUsername(appRealm, "user1");
+         UserModel user2 = UserStoragePrivateUtil.userLocalStorage(session).getUserByUsername(appRealm, "user2");
+
+         Assert.assertNotNull("User1 should still exist", user1);
+         Assert.assertNotNull("User2 should still exist", user2);
+         Assert.assertEquals("User1 should now have department persisted in DB", "Engineering", user1.getFirstAttribute("department"));
+         Assert.assertEquals("User2 should now have department persisted in DB", "Engineering", user2.getFirstAttribute("department"));
+      });
+
+      // Step 7: Add a new user and sync - should also get the department attribute
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         LDAPStorageProvider ldapProvider = LDAPTestUtils.getLdapProvider(session, ctx.getLdapModel());
+
+         LDAPTestUtils.addLDAPUser(ldapProvider, ctx.getRealm(), "user3", "User3", "LastName3", "user3@email.org", null, "3333");
+
+         KeycloakSessionFactory sessionFactory = session.getKeycloakSessionFactory();
+
+         SynchronizationResult syncResult = UserStoragePrivateUtil.runFullSync(sessionFactory, ctx.getLdapModel());
+         Assert.assertTrue("Third sync should succeed", syncResult.getFailed() == 0);
+         Assert.assertEquals("Should add 1 new user", 1, syncResult.getAdded());
+      });
+
+      // Step 8: Verify new user also gets the hardcoded attribute PERSISTED in database
+      testingClient.server().run(session -> {
+         LDAPTestContext ctx = LDAPTestContext.init(session);
+         RealmModel appRealm = ctx.getRealm();
+
+         // Use userLocalStorage to bypass LDAP proxy and read directly from database
+         UserModel user3 = UserStoragePrivateUtil.userLocalStorage(session).getUserByUsername(appRealm, "user3");
+         Assert.assertNotNull("User3 should exist", user3);
+         Assert.assertEquals("User3 should have department persisted in DB", "Engineering", user3.getFirstAttribute("department"));
       });
    }
 }

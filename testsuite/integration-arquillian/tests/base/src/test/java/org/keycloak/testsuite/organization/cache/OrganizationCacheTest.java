@@ -299,7 +299,7 @@ public class OrganizationCacheTest extends AbstractOrganizationTest {
             final String alias = "org-idp-" + i;
             idpRep.setAlias(alias);
             testRealm().identityProviders().create(idpRep).close();
-            getCleanup().addCleanup(testRealm().identityProviders().get("alias")::remove);
+            getCleanup().addCleanup(testRealm().identityProviders().get(alias)::remove);
         }
 
         String orgaId = testRealm().organizations().list(-1, -1).get(0).getId();
@@ -369,13 +369,14 @@ public class OrganizationCacheTest extends AbstractOrganizationTest {
     public void testCacheIDPForLogin() {
         // create 20 providers, and associate 10 of them with an organization.
         for (int i = 0; i < 20; i++) {
+            final String alias = "idp-alias-" + i;
             IdentityProviderRepresentation idpRep = new IdentityProviderRepresentation();
-            idpRep.setAlias("idp-alias-" + i);
+            idpRep.setAlias(alias);
             idpRep.setEnabled((i % 2) == 0); // half of the IDPs will be disabled and won't qualify for login.
             idpRep.setDisplayName("Broker " + i);
             idpRep.setProviderId("keycloak-oidc");
             testRealm().identityProviders().create(idpRep).close();
-            getCleanup().addCleanup(testRealm().identityProviders().get("alias")::remove);
+            getCleanup().addCleanup(testRealm().identityProviders().get(alias)::remove);
         }
 
         String orgaId = testRealm().organizations().list(-1, -1).get(0).getId();

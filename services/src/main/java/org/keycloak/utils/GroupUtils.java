@@ -91,7 +91,9 @@ public class GroupUtils {
 
                 // Permission check for parent
                 if (!filter.shouldInclude(parentModel)) {
-                    groupIdToGroups.remove(currGroup.getId());
+                    if (!AdminPermissionsSchema.SCHEMA.isAdminPermissionsEnabled(realm)) {
+                        groupIdToGroups.remove(currGroup.getId());
+                    }
                     break;
                 }
 
@@ -147,7 +149,7 @@ public class GroupUtils {
             // Filter with permission checks
             group -> {
                 if (AdminPermissionsSchema.SCHEMA.isAdminPermissionsEnabled(realm)) {
-                    return true; // FGAP v2 handles permissions differently
+                    return groupEvaluator.canView(group);
                 }
                 //TODO GROUPS do permissions work in such a way that if you can view the children you can definitely view the parents?
                 return groupEvaluator.canView() || groupEvaluator.canView(group);

@@ -18,9 +18,11 @@
 package org.keycloak.tests.admin.authz.fgap;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.core.Response;
 
 import org.keycloak.admin.client.Keycloak;
@@ -55,6 +57,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @KeycloakIntegrationTest
@@ -163,6 +166,38 @@ public class GroupResourceTypeFilteringTest extends AbstractPermissionTest {
         assertEquals(5, realm.admin().groups().group(parentGroup.getId()).getSubGroups(-1, -1, false).size());
         assertEquals(5, realm.admin().groups().group(parentGroup.getId()).getSubGroups(null, false, -1, -1, false).size());
         assertEquals(5, realm.admin().groups().group(parentGroup.getId()).toRepresentation().getSubGroupCount());
+    }
+
+    @Test
+    public void testVisibleSubGroupSearchDoesNotDiscloseHiddenParentGroup() {
+        UserRepresentation myadmin = realm.admin().users().search("myadmin").get(0);
+        UserPolicyRepresentation policy = createUserPolicy(realm, adminPermissionsClient,
+                "Only My Admin User Policy", myadmin.getId());
+
+        GroupRepresentation parentGroup = realm.admin().groups().groups("group-0", -1, -1).get(0);
+        parentGroup.setAttributes(Map.of(
+                "hidden-parent-attribute", List.of("hidden-parent-value")));
+        realm.admin().groups().group(parentGroup.getId()).update(parentGroup);
+
+        GroupRepresentation visibleSubGroup = parentGroup.getSubGroups().stream()
+                .filter(group -> group.getName().equals("subgroup-0.1"))
+                .findFirst()
+                .orElseThrow();
+        createPermission(adminPermissionsClient, visibleSubGroup.getId(),
+                GROUPS_RESOURCE_TYPE, Set.of(VIEW), policy);
+
+        // direct access to parent must be forbidden
+        assertThrows(ForbiddenException.class, () -> realmAdminClient.realm(realm.getName())
+                .groups().group(parentGroup.getId()).toRepresentation());
+
+        // hierarchy search for the visible child must not disclose the hidden parent
+        List<GroupRepresentation> search = realmAdminClient.realm(realm.getName())
+                .groups().groups(visibleSubGroup.getName(), -1, -1, false);
+        assertFalse(search.stream().anyMatch(g -> g.getId().equals(parentGroup.getId())));
+        assertFalse(search.stream().anyMatch(g -> g.getAttributes() != null
+                && g.getAttributes().containsKey("hidden-parent-attribute")));
+        assertEquals(1, search.size());
+        assertEquals(visibleSubGroup.getId(), search.get(0).getId());
     }
 
     @Test

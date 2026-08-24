@@ -51,6 +51,7 @@ import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.client.ClientStorageProvider;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -795,8 +796,12 @@ public class JpaUserProvider implements UserProvider, UserCredentialStore, JpaUs
 
         TypedQuery<UserEntity> query = em.createQuery(queryBuilder);
 
+        FlushModeType originalFlushMode = em.getFlushMode();
+        em.setFlushMode(FlushModeType.COMMIT);
+
         UserProvider users = session.users();
         return closing(paginateQuery(query, firstResult, maxResults).getResultStream())
+                .onClose(() -> em.setFlushMode(originalFlushMode))
                 // following check verifies that there are no collisions with hashes
                 .filter(predicateForFilteringUsersByAttributes(customLongValueSearchAttributes, JpaHashUtils::compareSourceValueLowerCase))
                 .map(userEntity -> users.getUserById(realm, userEntity.getId()))

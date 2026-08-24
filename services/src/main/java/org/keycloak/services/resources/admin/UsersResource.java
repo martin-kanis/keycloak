@@ -547,7 +547,7 @@ public class UsersResource {
                     UserRepresentation rep = profile.toRepresentation();
                     UserRepresentation userRep = briefRepresentationB ?
                             ModelToRepresentation.toBriefRepresentation(user, rep, false) :
-                            ModelToRepresentation.toRepresentation(session, realm, user, rep, false);
+                            rep;
                     userRep.setAccess(usersEvaluator.getAccessForListing(user));
                     return userRep;
                 });

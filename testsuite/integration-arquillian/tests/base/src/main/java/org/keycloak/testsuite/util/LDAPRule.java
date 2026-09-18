@@ -64,6 +64,10 @@ public class LDAPRule extends ExternalResource {
 
     private static final String PROPERTY_CERTIFICATE_PASSWORD = "certificatePassword";
 
+    // Without this, a stalled LDAP read blocks the server thread indefinitely and only surfaces as an
+    // opaque client-side timeout in the browser.
+    private static final String READ_TIMEOUT = System.getProperty("ldap.test.readTimeout", "10000");
+
     LDAPTestConfiguration ldapTestConfiguration;
     private LDAPEmbeddedServer ldapEmbeddedServer;
     private LDAPAssume assume;
@@ -218,6 +222,7 @@ public class LDAPRule extends ExternalResource {
 
     public Map<String, String> getConfig() {
         Map<String, String> config = ldapTestConfiguration.getLDAPConfig();
+        config.put(LDAPConstants.READ_TIMEOUT, READ_TIMEOUT);
         String ldapConnectionUrl = config.get(LDAPConstants.CONNECTION_URL);
         if (ldapConnectionUrl != null && defaultProperties.getProperty("AUTO_UPDATE_LDAP_CONNECTION_URL").equals("true")) {
             if (

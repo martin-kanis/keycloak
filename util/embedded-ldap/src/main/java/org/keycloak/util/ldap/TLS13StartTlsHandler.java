@@ -47,6 +47,10 @@ import org.jboss.logging.Logger;
  * enabling TLSv1.3 whose single-flight handshake avoids timing-sensitive races observed
  * in the multi-flight TLSv1.2 handshake under MINA's {@link SslFilter}.
  *
+ * <p>The enabled protocols can be overridden with
+ * {@code -Dkeycloak.ldap.starttls.protocols=TLSv1.2} to isolate StartTLS flakiness to a
+ * specific protocol version without a code change between CI runs.
+ *
  * <p>This handler initializes its own {@link SSLContext} because the parent's
  * {@code sslContext} field is private and inaccessible from a subclass.
  */
@@ -54,9 +58,13 @@ public class TLS13StartTlsHandler extends StartTlsHandler {
 
     private static final Logger log = Logger.getLogger(TLS13StartTlsHandler.class);
 
+    private static final String PROTOCOLS_PROPERTY = "keycloak.ldap.starttls.protocols";
+
+    private static final String[] DEFAULT_PROTOCOLS = { "TLSv1.2", "TLSv1.3" };
+
     private SSLContext sslCtx;
     private List<String> ciphers;
-    private List<String> protocols;
+    private String[] protocols;
     private boolean needClientAuth;
     private boolean wantClientAuth;
 
@@ -74,16 +82,34 @@ public class TLS13StartTlsHandler extends StartTlsHandler {
             throw new RuntimeException("Failed to initialize SSLContext for StartTLS handler", e);
         }
 
+        List<String> transportProtocols = null;
+
         for (Transport transport : ldapServer.getTransports()) {
             if (transport instanceof TcpTransport) {
                 TcpTransport tcp = (TcpTransport) transport;
                 ciphers = tcp.getCipherSuite();
-                protocols = tcp.getEnabledProtocols();
+                transportProtocols = tcp.getEnabledProtocols();
                 needClientAuth = tcp.isNeedClientAuth();
                 wantClientAuth = tcp.isWantClientAuth();
                 break;
             }
         }
+
+        protocols = resolveEnabledProtocols(transportProtocols);
+    }
+
+    private static String[] resolveEnabledProtocols(List<String> transportProtocols) {
+        String configured = System.getProperty(PROTOCOLS_PROPERTY);
+
+        if (configured != null && !configured.isBlank()) {
+            return configured.trim().split("\\s*,\\s*");
+        }
+
+        if (transportProtocols != null && !transportProtocols.isEmpty()) {
+            return transportProtocols.toArray(new String[0]);
+        }
+
+        return DEFAULT_PROTOCOLS;
     }
 
     @Override
@@ -99,17 +125,13 @@ public class TLS13StartTlsHandler extends StartTlsHandler {
             if (ciphers != null && !ciphers.isEmpty()) {
                 sslFilter.setEnabledCipherSuites(ciphers.toArray(new String[0]));
             }
-            if (protocols != null && !protocols.isEmpty()) {
-                sslFilter.setEnabledProtocols(protocols.toArray(new String[0]));
-            } else {
-                sslFilter.setEnabledProtocols(new String[]{"TLSv1.2", "TLSv1.3"});
-            }
+            sslFilter.setEnabledProtocols(protocols);
             sslFilter.setNeedClientAuth(needClientAuth);
             sslFilter.setWantClientAuth(wantClientAuth);
 
             chain.addFirst("startTls", new StartTlsFilter());
             chain.addFirst("sslFilter", sslFilter);
-            log.debug("SslFilter + StartTlsFilter added to chain.");
+            log.infof("SslFilter + StartTlsFilter added to chain (enabled protocols: %s).", String.join(", ", protocols));
         }
 
         StartTlsResponse res = new StartTlsResponseImpl(req.getMessageId());

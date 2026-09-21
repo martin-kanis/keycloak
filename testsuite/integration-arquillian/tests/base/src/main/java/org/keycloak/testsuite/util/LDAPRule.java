@@ -68,6 +68,9 @@ public class LDAPRule extends ExternalResource {
     // opaque client-side timeout in the browser. Set to "none" to leave the timeout unset.
     private static final String READ_TIMEOUT = System.getProperty("ldap.test.readTimeout", "10000");
 
+    // Bounds the StartTLS handshake. Off by default; set to a number of milliseconds to enable.
+    private static final String START_TLS_HANDSHAKE_TIMEOUT = System.getProperty("ldap.test.startTlsHandshakeTimeout", "none");
+
     LDAPTestConfiguration ldapTestConfiguration;
     private LDAPEmbeddedServer ldapEmbeddedServer;
     private LDAPAssume assume;
@@ -225,7 +228,10 @@ public class LDAPRule extends ExternalResource {
         if (!"none".equals(READ_TIMEOUT)) {
             config.put(LDAPConstants.READ_TIMEOUT, READ_TIMEOUT);
         }
-        log.infof("LDAP read timeout: %s", READ_TIMEOUT);
+        if (!"none".equals(START_TLS_HANDSHAKE_TIMEOUT)) {
+            config.put(LDAPConstants.START_TLS_HANDSHAKE_TIMEOUT, START_TLS_HANDSHAKE_TIMEOUT);
+        }
+        log.infof("LDAP read timeout: %s, StartTLS handshake timeout: %s", READ_TIMEOUT, START_TLS_HANDSHAKE_TIMEOUT);
         String ldapConnectionUrl = config.get(LDAPConstants.CONNECTION_URL);
         if (ldapConnectionUrl != null && defaultProperties.getProperty("AUTO_UPDATE_LDAP_CONNECTION_URL").equals("true")) {
             if (

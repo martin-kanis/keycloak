@@ -158,6 +158,21 @@ public class LDAPConfig {
         return config.getFirst(LDAPConstants.READ_TIMEOUT);
     }
 
+    /**
+     * Timeout in milliseconds applied to the socket while the StartTLS handshake is negotiated.
+     */
+    public int getStartTlsHandshakeTimeout() {
+        String timeout = config.getFirst(LDAPConstants.START_TLS_HANDSHAKE_TIMEOUT);
+        if (timeout == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(timeout);
+        } catch (NumberFormatException nfe) {
+            return 0;
+        }
+    }
+
     public Properties getAdditionalConnectionProperties() {
         // not supported for now
         return null;

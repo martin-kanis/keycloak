@@ -72,6 +72,7 @@ public class LDAPConstants {
     public static final String CONNECTION_POOLING = "connectionPooling";
     public static final String CONNECTION_TIMEOUT = "connectionTimeout";
     public static final String READ_TIMEOUT = "readTimeout";
+    public static final String START_TLS_HANDSHAKE_TIMEOUT = "startTlsHandshakeTimeout";
     // Could be discovered by rootDse supportedControl: 1.2.840.113556.1.4.319
     public static final String PAGINATION = "pagination";
     public static final String MAX_CONDITIONS = "maxConditions";

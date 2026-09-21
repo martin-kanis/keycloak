@@ -1,6 +1,8 @@
 package org.keycloak.storage.ldap.idm.store.ldap;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
@@ -106,7 +108,7 @@ public final class LDAPContextManager implements AutoCloseable {
                     sslSocketFactory = provider.getSSLSocketFactory();
                 }
 
-                tlsResponse = startTLS(ldapContext, sslSocketFactory);
+                tlsResponse = startTLS(ldapContext, sslSocketFactory, ldapConfig.getStartTlsHandshakeTimeout());
 
                 // Exception should be already thrown by LDAPContextManager.startTLS if "startTLS" could not be established, but rather do some additional check
                 if (tlsResponse == null) {
@@ -143,19 +145,100 @@ public final class LDAPContextManager implements AutoCloseable {
     }
 
     public static StartTlsResponse startTLS(LdapContext ldapContext, SSLSocketFactory sslSocketFactory) throws NamingException {
+        return startTLS(ldapContext, sslSocketFactory, 0);
+    }
+
+    public static StartTlsResponse startTLS(LdapContext ldapContext, SSLSocketFactory sslSocketFactory, int handshakeTimeoutMillis) throws NamingException {
         StartTlsResponse tls = null;
+        HandshakeTimeoutSSLSocketFactory boundedFactory = handshakeTimeoutMillis > 0
+                ? new HandshakeTimeoutSSLSocketFactory(sslSocketFactory, handshakeTimeoutMillis)
+                : null;
 
         try {
             tls = (StartTlsResponse) ldapContext.extendedOperation(new StartTlsRequest());
-            tls.negotiate(sslSocketFactory);
+            tls.negotiate(boundedFactory != null ? boundedFactory : sslSocketFactory);
         } catch (Exception e) {
             logger.error("Could not negotiate TLS", e);
             NamingException ne = new AuthenticationException("Could not negotiate TLS");
             ne.setRootCause(e);
             throw ne;
+        } finally {
+            if (boundedFactory != null) {
+                boundedFactory.restoreSoTimeout();
+            }
         }
 
         return tls;
+    }
+
+    /**
+     * Applies a read timeout to the socket for the duration of the StartTLS handshake, so that a peer which stops
+     * sending handshake records cannot block the calling thread forever. The original timeout is put back once the
+     * handshake completes.
+     */
+    private static final class HandshakeTimeoutSSLSocketFactory extends SSLSocketFactory {
+
+        private final SSLSocketFactory delegate;
+        private final int handshakeTimeoutMillis;
+        private Socket socket;
+        private int previousSoTimeout;
+
+        private HandshakeTimeoutSSLSocketFactory(SSLSocketFactory delegate, int handshakeTimeoutMillis) {
+            this.delegate = delegate != null ? delegate : (SSLSocketFactory) SSLSocketFactory.getDefault();
+            this.handshakeTimeoutMillis = handshakeTimeoutMillis;
+        }
+
+        private Socket bound(Socket socket) throws IOException {
+            this.previousSoTimeout = socket.getSoTimeout();
+            this.socket = socket;
+            socket.setSoTimeout(handshakeTimeoutMillis);
+            return socket;
+        }
+
+        private void restoreSoTimeout() {
+            if (socket != null) {
+                try {
+                    socket.setSoTimeout(previousSoTimeout);
+                } catch (IOException ioe) {
+                    logger.debug("Could not restore the socket timeout after the StartTLS handshake", ioe);
+                }
+            }
+        }
+
+        @Override
+        public String[] getDefaultCipherSuites() {
+            return delegate.getDefaultCipherSuites();
+        }
+
+        @Override
+        public String[] getSupportedCipherSuites() {
+            return delegate.getSupportedCipherSuites();
+        }
+
+        @Override
+        public Socket createSocket(Socket s, String host, int port, boolean autoClose) throws IOException {
+            return bound(delegate.createSocket(s, host, port, autoClose));
+        }
+
+        @Override
+        public Socket createSocket(String host, int port) throws IOException {
+            return bound(delegate.createSocket(host, port));
+        }
+
+        @Override
+        public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
+            return bound(delegate.createSocket(host, port, localHost, localPort));
+        }
+
+        @Override
+        public Socket createSocket(InetAddress host, int port) throws IOException {
+            return bound(delegate.createSocket(host, port));
+        }
+
+        @Override
+        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
+            return bound(delegate.createSocket(address, port, localAddress, localPort));
+        }
     }
 
     // Fill auth properties into the initial connection env so the bound connection can be pooled and reused.

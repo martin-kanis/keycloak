@@ -1,0 +1,92 @@
+name: Stability - Java Distribution IT Reruns
+
+on:
+  workflow_dispatch:
+    inputs:
+      tests:
+        type: string
+        description: Tests to run
+        required: true
+      count:
+        type: number
+        description: Number of re-runs
+        default: 50
+      os:
+        type: choice
+        description: Runner to re-run on
+        default: windows-latest
+        options:
+          - windows-latest
+          - ubuntu-latest
+      version:
+        type: choice
+        description: JDK version
+        default: "21"
+        options:
+          - "17"
+          - "21"
+      extra-args:
+        type: string
+        description: Extra Maven arguments, e.g. -Dkeycloak.ldap.starttls.protocols=TLSv1.2
+        default: ""
+
+env:
+  MAVEN_ARGS: "-B -nsu -Daether.connector.http.connectionMaxTtl=25"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build Keycloak
+        uses: ./.github/actions/build-keycloak
+
+  jdk-integration-tests:
+    name: Java Distribution IT
+    needs: build
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: integration-test-setup
+        name: Integration test setup
+        uses: ./.github/actions/integration-test-setup
+        with:
+          jdk-dist: temurin
+          jdk-version: ${{ inputs.version }}
+
+      - name: Prepare Quarkus distribution with current JDK
+        run: ./mvnw install -e -pl testsuite/integration-arquillian/servers/auth-server/quarkus
+
+      - name: Run base tests
+        env:
+          TESTS: ${{ inputs.tests }}
+          COUNT: ${{ inputs.count }}
+          EXTRA_ARGS: ${{ inputs.extra-args }}
+        run: |
+          echo "Tests: $TESTS, count: $COUNT, os: ${{ inputs.os }}, jdk: ${{ inputs.version }}"
+          echo "Extra args: $EXTRA_ARGS"
+          FAILURES=0
+          for i in $(seq 1 $COUNT); do
+            echo "========================================================================="
+            echo Run: $i
+            echo "========================================================================="
+            if [ "$OSTYPE" == "msys" ]; then
+              ./mvnw test -Pauth-server-quarkus -Dtest=$TESTS $EXTRA_ARGS "-Dwebdriver.chrome.driver=$ChromeWebDriver/chromedriver.exe" -pl testsuite/integration-arquillian/tests/base 2>&1 | misc/log/trimmer.sh || FAILURES=$(($FAILURES + 1))
+            else
+              ./mvnw test -Pauth-server-quarkus -Dtest=$TESTS $EXTRA_ARGS "-Dwebdriver.chrome.driver=$CHROMEWEBDRIVER/chromedriver"     -pl testsuite/integration-arquillian/tests/base 2>&1 | misc/log/trimmer.sh || FAILURES=$(($FAILURES + 1))
+            fi
+          done
+          echo "Failures: $FAILURES"
+          exit $FAILURES

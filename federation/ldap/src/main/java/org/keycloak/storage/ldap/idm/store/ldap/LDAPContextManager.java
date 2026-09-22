@@ -146,7 +146,8 @@ public final class LDAPContextManager implements AutoCloseable {
         StartTlsResponse tls = null;
 
         try {
-            tls = (StartTlsResponse) ldapContext.extendedOperation(new StartTlsRequest());
+            tls = new StartTlsResponseWithAbruptClose(
+                    (StartTlsResponse) ldapContext.extendedOperation(new StartTlsRequest()));
             tls.negotiate(sslSocketFactory);
         } catch (Exception e) {
             logger.error("Could not negotiate TLS", e);
@@ -294,19 +295,21 @@ public final class LDAPContextManager implements AutoCloseable {
 
     @Override
     public void close() {
-        if (tlsResponse != null) {
-            try {
-                tlsResponse.close();
-            } catch (IOException e) {
-                logger.error("Could not close Ldap tlsResponse.", e);
+        try {
+            if (tlsResponse != null) {
+                try {
+                    tlsResponse.close();
+                } catch (IOException e) {
+                    logger.error("Could not close Ldap tlsResponse.", e);
+                }
             }
-        }
-
-        if (ldapContext != null) {
-            try {
-                ldapContext.close();
-            } catch (NamingException e) {
-                logger.error("Could not close Ldap context.", e);
+        } finally {
+            if (ldapContext != null) {
+                try {
+                    ldapContext.close();
+                } catch (NamingException e) {
+                    logger.error("Could not close Ldap context.", e);
+                }
             }
         }
     }
